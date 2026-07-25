@@ -240,7 +240,7 @@ Returns the file offset of __LINKEDIT."
                             :nextrel (length relocations))
      buffer))
   ;; LC_MAIN
-  (serialize-entry-point (mach-o-builder-entry-point builder) buffer))
+  (serialize-entry-point-command (mach-o-builder-entry-point builder) buffer))
 
 (defun %serialize-macho-payloads (buffer user-segments code-bytes code-offset
                                    linkedit-fileoff relocations has-symbols symbols

@@ -78,6 +78,7 @@ cl-cc package."
    (:file "got-plt-tests")
    (:file "macho-fat-tests")
    (:file "macho-build-tests")
+   (:file "macho-entry-point-tests")
    (:file "binary-logger-tests")
    (:file "patchable-entry-tests"))
   :perform (test-op (op system)
