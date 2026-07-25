@@ -1,29 +1,28 @@
 ;;;; run-compile-check.lisp
 ;;;;
-;;;; Compile and load :cl-cc-binary from the current source tree, then exit
-;;;; non-zero on any compile/load error. This is the build and CI gate.
-;;;; :cl-cc-binary's only runtime dependency is cl-log-kit (optional
-;;;; structured diagnostics, silent unless a caller binds *BINARY-LOGGER*),
-;;;; located via CL_CC_BINARY_CL_LOG_KIT_ROOT.
+;;;; Compile and load cl-cc-binary from the current source tree, then exit
+;;;; non-zero on any compile/load error. This is the build gate in
+;;;; packages.default; it is deliberately narrower than run-tests.lisp, because
+;;;; the shipped system has to build without the test framework present.
+;;;;
+;;;; cl-log-kit, the sole runtime dependency, is located through
+;;;; CL_SOURCE_REGISTRY, which ASDF reads by itself.
 
 (require :asdf)
 
-(let ((log-kit (uiop:getenv "CL_CC_BINARY_CL_LOG_KIT_ROOT")))
-  (unless log-kit
-    (format t "~&FAIL: CL_CC_BINARY_CL_LOG_KIT_ROOT is not set~%") (finish-output)
-    (sb-ext:exit :code 1))
-  (asdf:initialize-source-registry
-   (list :source-registry
-         (list :tree (truename "."))
-         (list :tree (truename log-kit))
-         :inherit-configuration)))
+;; The repository root, one level up from scripts/. See run-tests.lisp: this
+;; makes the tree findable without depending on the caller's working directory,
+;; and leaves CL_SOURCE_REGISTRY untouched.
+(push (uiop:pathname-parent-directory-pathname
+       (uiop:pathname-directory-pathname *load-truename*))
+      asdf:*central-registry*)
 
 (handler-case
     (progn
-      (asdf:load-system :cl-cc-binary)
+      (asdf:load-system "cl-cc-binary")
       (format t "~&PASS cl-cc-binary compile check~%")
       (finish-output))
   (error (e)
     (format t "~&FAIL cl-cc-binary: ~a~%" e)
     (finish-output)
-    (sb-ext:exit :code 1)))
+    (uiop:quit 1)))

@@ -54,8 +54,8 @@
           buildPhase = ''
             export HOME="$TMPDIR/home"
             mkdir -p "$HOME"
-            export CL_CC_BINARY_CL_LOG_KIT_ROOT="${toString cl-log-kit}"
-            sbcl --noinform --non-interactive --script scripts/run-compile-check.lisp
+            export CL_SOURCE_REGISTRY="${cl-log-kit}//"
+            sbcl --script scripts/run-compile-check.lisp
           '';
           installPhase = ''
             mkdir -p "$out/share/common-lisp/source/cl-cc-binary"
@@ -80,9 +80,8 @@
           buildPhase = ''
             export HOME="$TMPDIR/home"
             mkdir -p "$HOME"
-            export CL_CC_BINARY_CL_WEAVE_ROOT="${toString cl-weave}"
-            export CL_CC_BINARY_CL_LOG_KIT_ROOT="${toString cl-log-kit}"
-            sbcl --noinform --non-interactive --script run-tests.lisp
+            export CL_SOURCE_REGISTRY="${cl-weave}//:${cl-log-kit}//"
+            sbcl --script run-tests.lisp
           '';
           installPhase = "touch $out";
         };
