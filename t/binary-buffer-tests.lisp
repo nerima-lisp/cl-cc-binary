@@ -1,4 +1,4 @@
-;;;; tests/binary-buffer-tests.lisp — Binary buffer operation tests
+;;;; t/binary-buffer-tests.lisp — Binary buffer operation tests
 ;;;;
 ;;;; Tests for: binary buffer write/read, alignment, string conversion,
 ;;;; serialization primitives (macho-buffer.lisp).

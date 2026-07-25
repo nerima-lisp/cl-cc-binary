@@ -82,7 +82,7 @@
             mkdir -p "$HOME"
             export CL_CC_BINARY_CL_WEAVE_ROOT="${toString cl-weave}"
             export CL_CC_BINARY_CL_LOG_KIT_ROOT="${toString cl-log-kit}"
-            sbcl --noinform --non-interactive --script scripts/run-tests.lisp
+            sbcl --noinform --non-interactive --script run-tests.lisp
           '';
           installPhase = "touch $out";
         };

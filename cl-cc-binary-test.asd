@@ -5,7 +5,7 @@
   :license "MIT"
   :homepage "https://github.com/nerima-lisp/cl-cc-binary"
   :depends-on ("cl-cc-binary" "cl-weave" "cl-log-kit")
-  :pathname "tests"
+  :pathname "t"
   :serial t
   :components ((:file "package")
                (:file "binary-buffer-tests")

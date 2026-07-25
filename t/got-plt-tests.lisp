@@ -1,4 +1,4 @@
-;;;; tests/got-plt-tests.lisp — GOT/PLT section generation tests
+;;;; t/got-plt-tests.lisp — GOT/PLT section generation tests
 ;;;;
 ;;;; Tests for: add-plt-stubs, add-got-entries, add-dynamic-relocations,
 ;;;; bind-now-mode, setup-got-plt (got-plt.lisp).

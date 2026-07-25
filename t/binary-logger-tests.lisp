@@ -1,4 +1,4 @@
-;;;; tests/binary-logger-tests.lisp — *binary-logger* structured diagnostics
+;;;; t/binary-logger-tests.lisp — *binary-logger* structured diagnostics
 ;;;;
 ;;;; write-mach-o-file's codesign step is the only currently-silent failure
 ;;;; path in this library, and driving it end-to-end needs a real macOS

@@ -1,4 +1,4 @@
-;;;; tests/binary-constpool-tests.lisp — FR-724 constant pool tests
+;;;; t/binary-constpool-tests.lisp — FR-724 constant pool tests
 
 (in-package :cl-cc-binary/test)
 
