@@ -9,24 +9,31 @@
   :author "takeokunn"
   :license "MIT"
   :version "0.1.0"
-  :depends-on ()
+  :depends-on ("cl-log-kit")
   :pathname "src"
   :serial t
   :components
   ((:file "package")
+   (:file "binary-struct")
+   (:file "binary-writer")
    (:file "macho")
    (:file "macho-buffer")
    (:file "macho-fat")
    (:file "macho-serialize")
     (:file "macho-build")
+     (:file "macho-build-compression")
+     (:file "macho-build-assemble")
      (:file "elf")
       (:file "icf")
       (:file "got-plt")
-      (:file "dwo")
       (:file "patchable-entry")
        (:file "dwarf")
        (:file "dwarf-eh")
        (:file "elf-emit")
+       (:file "elf-emit-relocatable")
+       (:file "elf-emit-executable")
        (:file "dwarf-dwo")
       (:file "pe")
+      (:file "pe-tables")
+      (:file "pe-finalize")
      (:file "wasm")))

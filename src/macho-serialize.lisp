@@ -11,117 +11,109 @@
 
 (in-package :cl-cc/binary)
 
-;;; Structure Serialization
+;;; Structures And Their Serializers
+;;;
+;;; Each DEFINE-BINARY-STRUCT call below generates both the struct (formerly
+;;; in macho.lisp) and its serializer from one field-spec list; see
+;;; binary-struct.lisp.
 
-(defun serialize-mach-header (header buffer)
-  "Serialize MACH-HEADER to BUFFER."
-  (declare (type mach-header header)
-           (type byte-buffer buffer))
-  (serialize-uint32-le (mach-header-magic header) buffer)
-  (serialize-uint32-le (mach-header-cputype header) buffer)
-  (serialize-uint32-le (mach-header-cpusubtype header) buffer)
-  (serialize-uint32-le (mach-header-filetype header) buffer)
-  (serialize-uint32-le (mach-header-ncmds header) buffer)
-  (serialize-uint32-le (mach-header-sizeofcmds header) buffer)
-  (serialize-uint32-le (mach-header-flags header) buffer)
-  (serialize-uint32-le (mach-header-reserved header) buffer))
+(define-binary-struct mach-header
+    "64-bit Mach-O header structure."
+  ((magic +mh-magic-64+ :u32)
+   (cputype +cpu-type-x86-64+ :u32)
+   (cpusubtype +cpu-subtype-x86-64-all+ :u32)
+   (filetype +mh-execute+ :u32)
+   (ncmds 0 :u32)
+   (sizeofcmds 0 :u32)
+   (flags +mh-noundefs+ :u32)
+   (reserved 0 :u32)))
 
-(defun serialize-segment-command (seg buffer)
-  "Serialize SEGMENT-COMMAND to BUFFER (without sections)."
-  (declare (type segment-command seg)
-           (type byte-buffer buffer))
-  (serialize-uint32-le (segment-command-cmd seg) buffer)
-  (serialize-uint32-le (segment-command-cmdsize seg) buffer)
-  (serialize-string-16 (segment-command-segname seg) buffer)
-  (serialize-uint64-le (segment-command-vmaddr seg) buffer)
-  (serialize-uint64-le (segment-command-vmsize seg) buffer)
-  (serialize-uint64-le (segment-command-fileoff seg) buffer)
-  (serialize-uint64-le (segment-command-filesize seg) buffer)
-  (serialize-uint32-le (segment-command-maxprot seg) buffer)
-  (serialize-uint32-le (segment-command-initprot seg) buffer)
-  (serialize-uint32-le (segment-command-nsects seg) buffer)
-  (serialize-uint32-le (segment-command-flags seg) buffer))
+(define-binary-struct segment-command
+    "64-bit segment load command."
+  ((cmd +lc-segment-64+ :u32)
+   (cmdsize 72 :u32)
+   (segname "" :string16)
+   (vmaddr 0 :u64)
+   (vmsize 0 :u64)
+   (fileoff 0 :u64)
+   (filesize 0 :u64)
+   (maxprot 7 :u32)   ; rwx
+   (initprot 5 :u32)  ; rx
+   (nsects 0 :u32)
+   (flags 0 :u32))
+  :extra-slots ((payload (make-array 0 :element-type '(unsigned-byte 8))
+                         :type (simple-array (unsigned-byte 8) (*)))
+                (sections nil :type list))
+  :serializer-note "Sections are serialized separately by SERIALIZE-SECTION.")
 
-(defun serialize-section (sect buffer)
-  "Serialize SECTION to BUFFER."
-  (declare (type section sect)
-           (type byte-buffer buffer))
-  (serialize-string-16 (section-sectname sect) buffer)
-  (serialize-string-16 (section-segname sect) buffer)
-  (serialize-uint64-le (section-addr sect) buffer)
-  (serialize-uint64-le (section-size sect) buffer)
-  (serialize-uint32-le (section-offset sect) buffer)
-  (serialize-uint32-le (section-align sect) buffer)
-  (serialize-uint32-le (section-reloff sect) buffer)
-  (serialize-uint32-le (section-nreloc sect) buffer)
-  (serialize-uint32-le (section-flags sect) buffer)
-  (serialize-uint32-le (section-reserved1 sect) buffer)
-  (serialize-uint32-le (section-reserved2 sect) buffer)
-  (serialize-uint32-le (section-reserved3 sect) buffer))
+(define-binary-struct section
+    "64-bit section structure."
+  ((sectname "" :string16)
+   (segname "" :string16)
+   (addr 0 :u64)
+   (size 0 :u64)
+   (offset 0 :u32)
+   (align 0 :u32)
+   (reloff 0 :u32)
+   (nreloc 0 :u32)
+   (flags 0 :u32)
+   (reserved1 0 :u32)
+   (reserved2 0 :u32)
+   (reserved3 0 :u32)))
 
-(defun serialize-entry-point (entry buffer)
-  "Serialize ENTRY-POINT-COMMAND to BUFFER."
-  (declare (type entry-point-command entry)
-           (type byte-buffer buffer))
-  (serialize-uint32-le (entry-point-command-cmd entry) buffer)
-  (serialize-uint32-le (entry-point-command-cmdsize entry) buffer)
-  (serialize-uint64-le (entry-point-command-entryoff entry) buffer)
-  (serialize-uint64-le (entry-point-command-stacksize entry) buffer))
+(define-binary-struct entry-point-command
+    "LC_MAIN entry point command."
+  ((cmd +lc-main+ :u32)
+   (cmdsize 24 :u32)
+   (entryoff 0 :u64)
+   (stacksize 0 :u64)))
 
-(defun serialize-symtab-command (symtab buffer)
-  "Serialize SYMTAB-COMMAND to BUFFER."
-  (declare (type symtab-command symtab)
-           (type byte-buffer buffer))
-  (serialize-uint32-le (symtab-command-cmd symtab) buffer)
-  (serialize-uint32-le (symtab-command-cmdsize symtab) buffer)
-  (serialize-uint32-le (symtab-command-symoff symtab) buffer)
-  (serialize-uint32-le (symtab-command-nsyms symtab) buffer)
-  (serialize-uint32-le (symtab-command-stroff symtab) buffer)
-  (serialize-uint32-le (symtab-command-strsize symtab) buffer))
+(define-binary-struct symtab-command
+    "Symbol table load command."
+  ((cmd +lc-symtab+ :u32)
+   (cmdsize 24 :u32)
+   (symoff 0 :u32)
+   (nsyms 0 :u32)
+   (stroff 0 :u32)
+   (strsize 0 :u32)))
 
-(defun serialize-dysymtab-command (dysymtab buffer)
-  "Serialize DYSYMTAB-COMMAND to BUFFER."
-  (declare (type dysymtab-command dysymtab)
-           (type byte-buffer buffer))
-  (dolist (field (list (dysymtab-command-cmd dysymtab)
-                       (dysymtab-command-cmdsize dysymtab)
-                       (dysymtab-command-ilocalsym dysymtab)
-                       (dysymtab-command-nlocalsym dysymtab)
-                       (dysymtab-command-iextdefsym dysymtab)
-                       (dysymtab-command-nextdefsym dysymtab)
-                       (dysymtab-command-iundefsym dysymtab)
-                       (dysymtab-command-nundefsym dysymtab)
-                       (dysymtab-command-tocoff dysymtab)
-                       (dysymtab-command-ntoc dysymtab)
-                       (dysymtab-command-modtaboff dysymtab)
-                       (dysymtab-command-nmodtab dysymtab)
-                       (dysymtab-command-extrefsymoff dysymtab)
-                       (dysymtab-command-nextrefsyms dysymtab)
-                       (dysymtab-command-indirectsymoff dysymtab)
-                       (dysymtab-command-nindirectsyms dysymtab)
-                       (dysymtab-command-extreloff dysymtab)
-                       (dysymtab-command-nextrel dysymtab)
-                       (dysymtab-command-locreloff dysymtab)
-                       (dysymtab-command-nlocrel dysymtab)))
-    (serialize-uint32-le field buffer)))
+(define-binary-struct dysymtab-command
+    "Dynamic symbol table load command. Minimal zero-filled serialization."
+  ((cmd +lc-dysymtab+ :u32)
+   (cmdsize 80 :u32)
+   (ilocalsym 0 :u32)
+   (nlocalsym 0 :u32)
+   (iextdefsym 0 :u32)
+   (nextdefsym 0 :u32)
+   (iundefsym 0 :u32)
+   (nundefsym 0 :u32)
+   (tocoff 0 :u32)
+   (ntoc 0 :u32)
+   (modtaboff 0 :u32)
+   (nmodtab 0 :u32)
+   (extrefsymoff 0 :u32)
+   (nextrefsyms 0 :u32)
+   (indirectsymoff 0 :u32)
+   (nindirectsyms 0 :u32)
+   (extreloff 0 :u32)
+   (nextrel 0 :u32)
+   (locreloff 0 :u32)
+   (nlocrel 0 :u32)))
 
-(defun serialize-dyld-info-command (dyld-info buffer)
-  "Serialize DYLD-INFO-COMMAND to BUFFER."
-  (declare (type dyld-info-command dyld-info)
-           (type byte-buffer buffer))
-  (dolist (field (list (dyld-info-command-cmd dyld-info)
-                       (dyld-info-command-cmdsize dyld-info)
-                       (dyld-info-command-rebase-off dyld-info)
-                       (dyld-info-command-rebase-size dyld-info)
-                       (dyld-info-command-bind-off dyld-info)
-                       (dyld-info-command-bind-size dyld-info)
-                       (dyld-info-command-weak-bind-off dyld-info)
-                       (dyld-info-command-weak-bind-size dyld-info)
-                       (dyld-info-command-lazy-bind-off dyld-info)
-                       (dyld-info-command-lazy-bind-size dyld-info)
-                       (dyld-info-command-export-off dyld-info)
-                       (dyld-info-command-export-size dyld-info)))
-    (serialize-uint32-le field buffer)))
+(define-binary-struct dyld-info-command
+    "LC_DYLD_INFO_ONLY command containing link-edit rebase/bind/export ranges."
+  ((cmd +lc-dyld-info-only+ :u32)
+   (cmdsize 48 :u32)
+   (rebase-off 0 :u32)
+   (rebase-size 0 :u32)
+   (bind-off 0 :u32)
+   (bind-size 0 :u32)
+   (weak-bind-off 0 :u32)
+   (weak-bind-size 0 :u32)
+   (lazy-bind-off 0 :u32)
+   (lazy-bind-size 0 :u32)
+   (export-off 0 :u32)
+   (export-size 0 :u32)))
 
 (defun serialize-dylib-command (dylib buffer)
   "Serialize DYLIB-COMMAND to BUFFER, including its padded path string."
@@ -141,14 +133,12 @@
     (loop repeat (- cmdsize (+ 24 (length name)))
           do (buffer-write-byte buffer 0))))
 
-(defun serialize-linkedit-data-command (command buffer)
-  "Serialize LINKEDIT-DATA-COMMAND to BUFFER."
-  (declare (type linkedit-data-command command)
-           (type byte-buffer buffer))
-  (serialize-uint32-le (linkedit-data-command-cmd command) buffer)
-  (serialize-uint32-le (linkedit-data-command-cmdsize command) buffer)
-  (serialize-uint32-le (linkedit-data-command-dataoff command) buffer)
-  (serialize-uint32-le (linkedit-data-command-datasize command) buffer))
+(define-binary-struct linkedit-data-command
+    "LC_CODE_SIGNATURE and other link-edit data command payload ranges."
+  ((cmd +lc-code-signature+ :u32)
+   (cmdsize 16 :u32)
+   (dataoff 0 :u32)
+   (datasize 0 :u32)))
 
 (defun serialize-relocation-info (reloc buffer)
   "Serialize Mach-O RELOCATION-INFO to BUFFER."

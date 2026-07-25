@@ -115,49 +115,15 @@
   "Default __DATA_CONST segment virtual base address.")
 
 ;;; Structures
-
-(defstruct mach-header
-  "64-bit Mach-O header structure."
-  (magic +mh-magic-64+ :type (unsigned-byte 32))
-  (cputype +cpu-type-x86-64+ :type (unsigned-byte 32))
-  (cpusubtype +cpu-subtype-x86-64-all+ :type (unsigned-byte 32))
-  (filetype +mh-execute+ :type (unsigned-byte 32))
-  (ncmds 0 :type (unsigned-byte 32))
-  (sizeofcmds 0 :type (unsigned-byte 32))
-  (flags +mh-noundefs+ :type (unsigned-byte 32))
-  (reserved 0 :type (unsigned-byte 32)))
-
-(defstruct segment-command
-  "64-bit segment load command."
-  (cmd +lc-segment-64+ :type (unsigned-byte 32))
-  (cmdsize 72 :type (unsigned-byte 32))
-  (segname "" :type string)
-  (vmaddr 0 :type (unsigned-byte 64))
-  (vmsize 0 :type (unsigned-byte 64))
-  (fileoff 0 :type (unsigned-byte 64))
-  (filesize 0 :type (unsigned-byte 64))
-  (maxprot 7 :type (unsigned-byte 32))   ; rwx
-  (initprot 5 :type (unsigned-byte 32))  ; rx
-  (nsects 0 :type (unsigned-byte 32))
-  (flags 0 :type (unsigned-byte 32))
-  (payload (make-array 0 :element-type '(unsigned-byte 8))
-           :type (simple-array (unsigned-byte 8) (*)))
-  (sections nil :type list))
-
-(defstruct section
-  "64-bit section structure."
-  (sectname "" :type string)
-  (segname "" :type string)
-  (addr 0 :type (unsigned-byte 64))
-  (size 0 :type (unsigned-byte 64))
-  (offset 0 :type (unsigned-byte 32))
-  (align 0 :type (unsigned-byte 32))
-  (reloff 0 :type (unsigned-byte 32))
-  (nreloc 0 :type (unsigned-byte 32))
-  (flags 0 :type (unsigned-byte 32))
-  (reserved1 0 :type (unsigned-byte 32))
-  (reserved2 0 :type (unsigned-byte 32))
-  (reserved3 0 :type (unsigned-byte 32)))
+;;;
+;;; mach-header, segment-command, section, symtab-command, dysymtab-command,
+;;; dyld-info-command, linkedit-data-command, and entry-point-command are
+;;; defined together with their serializers via DEFINE-BINARY-STRUCT in
+;;; macho-serialize.lisp, since each field serializes to a byte-buffer in
+;;; exactly its slot order. The three structures below stay hand-written:
+;;; relocation-info bitpacks its fields into one word, dylib-command has a
+;;; variable-length trailing string, and nlist serializes its 16-bit n-desc
+;;; slot as a wire-format 32-bit field for historical layout compatibility.
 
 (defstruct relocation-info
   "Mach-O relocation_info entry.
@@ -172,53 +138,6 @@ Mach-O's log2 width encoding (2 means 4 bytes, 3 means 8 bytes)."
   (r-extern 1 :type (unsigned-byte 8))
   (r-type 0 :type (unsigned-byte 8)))
 
-(defstruct symtab-command
-  "Symbol table load command."
-  (cmd +lc-symtab+ :type (unsigned-byte 32))
-  (cmdsize 24 :type (unsigned-byte 32))
-  (symoff 0 :type (unsigned-byte 32))
-  (nsyms 0 :type (unsigned-byte 32))
-  (stroff 0 :type (unsigned-byte 32))
-  (strsize 0 :type (unsigned-byte 32)))
-
-(defstruct dysymtab-command
-  "Dynamic symbol table load command. Minimal zero-filled serialization."
-  (cmd +lc-dysymtab+ :type (unsigned-byte 32))
-  (cmdsize 80 :type (unsigned-byte 32))
-  (ilocalsym 0 :type (unsigned-byte 32))
-  (nlocalsym 0 :type (unsigned-byte 32))
-  (iextdefsym 0 :type (unsigned-byte 32))
-  (nextdefsym 0 :type (unsigned-byte 32))
-  (iundefsym 0 :type (unsigned-byte 32))
-  (nundefsym 0 :type (unsigned-byte 32))
-  (tocoff 0 :type (unsigned-byte 32))
-  (ntoc 0 :type (unsigned-byte 32))
-  (modtaboff 0 :type (unsigned-byte 32))
-  (nmodtab 0 :type (unsigned-byte 32))
-  (extrefsymoff 0 :type (unsigned-byte 32))
-  (nextrefsyms 0 :type (unsigned-byte 32))
-  (indirectsymoff 0 :type (unsigned-byte 32))
-  (nindirectsyms 0 :type (unsigned-byte 32))
-  (extreloff 0 :type (unsigned-byte 32))
-  (nextrel 0 :type (unsigned-byte 32))
-  (locreloff 0 :type (unsigned-byte 32))
-  (nlocrel 0 :type (unsigned-byte 32)))
-
-(defstruct dyld-info-command
-  "LC_DYLD_INFO_ONLY command containing link-edit rebase/bind/export ranges."
-  (cmd +lc-dyld-info-only+ :type (unsigned-byte 32))
-  (cmdsize 48 :type (unsigned-byte 32))
-  (rebase-off 0 :type (unsigned-byte 32))
-  (rebase-size 0 :type (unsigned-byte 32))
-  (bind-off 0 :type (unsigned-byte 32))
-  (bind-size 0 :type (unsigned-byte 32))
-  (weak-bind-off 0 :type (unsigned-byte 32))
-  (weak-bind-size 0 :type (unsigned-byte 32))
-  (lazy-bind-off 0 :type (unsigned-byte 32))
-  (lazy-bind-size 0 :type (unsigned-byte 32))
-  (export-off 0 :type (unsigned-byte 32))
-  (export-size 0 :type (unsigned-byte 32)))
-
 (defstruct dylib-command
   "LC_LOAD_DYLIB command for a dependent dynamic library."
   (cmd +lc-load-dylib+ :type (unsigned-byte 32))
@@ -228,20 +147,6 @@ Mach-O's log2 width encoding (2 means 4 bytes, 3 means 8 bytes)."
   (current-version #x00010000 :type (unsigned-byte 32))
   (compatibility-version #x00010000 :type (unsigned-byte 32))
   (name "/usr/lib/libSystem.B.dylib" :type string))
-
-(defstruct linkedit-data-command
-  "LC_CODE_SIGNATURE and other link-edit data command payload ranges."
-  (cmd +lc-code-signature+ :type (unsigned-byte 32))
-  (cmdsize 16 :type (unsigned-byte 32))
-  (dataoff 0 :type (unsigned-byte 32))
-  (datasize 0 :type (unsigned-byte 32)))
-
-(defstruct entry-point-command
-  "LC_MAIN entry point command."
-  (cmd +lc-main+ :type (unsigned-byte 32))
-  (cmdsize 24 :type (unsigned-byte 32))
-  (entryoff 0 :type (unsigned-byte 64))
-  (stacksize 0 :type (unsigned-byte 64)))
 
 (defstruct nlist
   "64-bit symbol table entry."

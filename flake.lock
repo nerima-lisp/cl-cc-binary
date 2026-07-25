@@ -1,0 +1,61 @@
+{
+  "nodes": {
+    "cl-log-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784893936,
+        "narHash": "sha256-n1qdN+GPMwobdR0lSgDmmx3oWouJY7G/UV5T5aV54Qo=",
+        "owner": "nerima-lisp",
+        "repo": "cl-log-kit",
+        "rev": "314f34fa94c996fc8d216598c07dae30155dc9e7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "repo": "cl-log-kit",
+        "type": "github"
+      }
+    },
+    "cl-weave": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784866842,
+        "narHash": "sha256-uFdqahTn9aTgFYnV8tkY5CLI53EGxSZGXjW6Ky1NgXY=",
+        "owner": "nerima-lisp",
+        "repo": "cl-weave",
+        "rev": "7ddc1a283878878a58ec90ab6d4742be86868ba8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "repo": "cl-weave",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1784783405,
+        "narHash": "sha256-4IHyyLgLBdKefkljdKod4IMn023pQiDXAWJA187cmdY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "7525d999cd850b9a488817abc89c75dc733acf17",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "cl-log-kit": "cl-log-kit",
+        "cl-weave": "cl-weave",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

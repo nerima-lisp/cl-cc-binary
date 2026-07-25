@@ -9,6 +9,14 @@
       url = "github:nerima-lisp/cl-weave";
       flake = false;
     };
+    # Runtime: optional structured-logging sink for Mach-O/ELF/PE emission
+    # diagnostics (silent unless a caller binds *BINARY-LOGGER*). Pulled as a
+    # plain source tree and handed to both the compile check and the test
+    # runner via CL_CC_BINARY_CL_LOG_KIT_ROOT.
+    cl-log-kit = {
+      url = "github:nerima-lisp/cl-log-kit";
+      flake = false;
+    };
   };
 
   outputs =
@@ -16,6 +24,7 @@
       self,
       nixpkgs,
       cl-weave,
+      cl-log-kit,
     }:
     let
       systems = [
@@ -45,6 +54,7 @@
           buildPhase = ''
             export HOME="$TMPDIR/home"
             mkdir -p "$HOME"
+            export CL_CC_BINARY_CL_LOG_KIT_ROOT="${toString cl-log-kit}"
             sbcl --noinform --non-interactive --script scripts/run-compile-check.lisp
           '';
           installPhase = ''
@@ -71,6 +81,7 @@
             export HOME="$TMPDIR/home"
             mkdir -p "$HOME"
             export CL_CC_BINARY_CL_WEAVE_ROOT="${toString cl-weave}"
+            export CL_CC_BINARY_CL_LOG_KIT_ROOT="${toString cl-log-kit}"
             sbcl --noinform --non-interactive --script scripts/run-tests.lisp
           '';
           installPhase = "touch $out";

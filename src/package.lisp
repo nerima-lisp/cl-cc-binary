@@ -114,6 +114,7 @@
    #:write-mach-o-file
    #:build-mach-o-fat-binary
    #:write-mach-o-fat-file
+   #:*binary-logger*
 
    ;; Utilities
    #:align-up
