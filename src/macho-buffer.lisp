@@ -86,7 +86,7 @@
   "Align VALUE up to ALIGNMENT boundary."
   (declare (type (unsigned-byte 64) value)
            (type (unsigned-byte 64) alignment)
-           (optimize (speed 3) (safety 0)))
+           (optimize (speed 3) (safety 1)))
   (* (ceiling value alignment) alignment))
 
 (defun string-to-ascii-bytes (string)
@@ -104,7 +104,7 @@
   "Write 32-bit VALUE to BUFFER in little-endian byte order."
   (declare (type (unsigned-byte 32) value)
            (type byte-buffer buffer)
-           (optimize (speed 3) (safety 0)))
+           (optimize (speed 3) (safety 1)))
   (buffer-write-byte buffer (logand value #xFF))
   (buffer-write-byte buffer (logand (ash value -8) #xFF))
   (buffer-write-byte buffer (logand (ash value -16) #xFF))
@@ -114,7 +114,7 @@
   "Write 64-bit VALUE to BUFFER in little-endian byte order."
   (declare (type (unsigned-byte 64) value)
            (type byte-buffer buffer)
-           (optimize (speed 3) (safety 0)))
+           (optimize (speed 3) (safety 1)))
   (serialize-uint32-le (logand value #xFFFFFFFF) buffer)
   (serialize-uint32-le (ash value -32) buffer))
 
@@ -131,5 +131,5 @@
   "Write byte sequence BYTES to BUFFER."
   (declare (type (simple-array (unsigned-byte 8) (*)) bytes)
            (type byte-buffer buffer)
-           (optimize (speed 3) (safety 0)))
+           (optimize (speed 3) (safety 1)))
   (buffer-write-bytes buffer bytes))
