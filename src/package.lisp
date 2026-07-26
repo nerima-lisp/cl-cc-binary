@@ -3,8 +3,7 @@
 ;;; Package for Mach-O binary format support in cl-cc.
 
 (defpackage :cl-cc/binary
-  (:use :cl)
-  (:nicknames :binary)
+  (:use #:cl)
   (:export
    ;; Mach-O constants
    #:+mh-magic-64+
