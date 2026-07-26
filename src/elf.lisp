@@ -1,7 +1,8 @@
 ;;;; packages/binary/src/elf.lisp - ELF64 Relocatable Object File Builder
 ;;;
 ;;; Builds ELF64 .o files for x86-64 Linux (ET_REL).
-;;; FR-247: Unwind Tables / .eh_frame Generation — DWARF CFI-based unwind information for native debuggers and profilers; LSB/System V ABI compliant
+;;; FR-247: Unwind Tables / .eh_frame Generation — DWARF CFI-based unwind
+;;; information for native debuggers and profilers; LSB/System V ABI compliant.
 ;;; Sections: NULL, .text, .rodata, .bss, .eh_frame, .eh_frame_hdr,
 ;;;           .rela.text, .symtab, .strtab, .shstrtab
 ;;;
@@ -318,7 +319,9 @@ SHF_WRITE), allowing the final OS mapping to protect constants from writes."
 
 ;;; FR-291: Program header (segment) support for executables
 
-(defun elf64-add-load-segment (builder vaddr memsz &key (flags (+ +pf-r+ +pf-x+)) (filesz nil) (align #x1000))
+(defun elf64-add-load-segment (builder vaddr memsz
+                               &key (flags (+ +pf-r+ +pf-x+)) (filesz nil)
+                                    (align #x1000))
   "Add a PT_LOAD program header covering [VADDR, VADDR+MEMSZ).
 FILESZ defaults to MEMSZ (no .bss tail).  ALIGN defaults to 4KB page.
 FLAGS default to PF_R | PF_X (readable+executable)."

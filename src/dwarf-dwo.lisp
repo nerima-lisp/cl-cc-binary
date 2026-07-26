@@ -50,7 +50,8 @@ Full DIE emission (types, variables, line numbers) is handled by emit-dwarf-dwo.
     (binary-buffer-to-array buf)))
 
 (defun build-dwo-file (dwo-name &key (producer "cl-cc split-dwarf"))
-  "Build a small ELF .dwo file with .debug_info.dwo, .debug_abbrev.dwo, and .debug_line.dwo sections."
+  "Build a small ELF .dwo file with the .debug_info.dwo, .debug_abbrev.dwo
+and .debug_line.dwo sections."
   (declare (ignore producer))
   (let* ((shstrtab (make-strtab))
          (sh-info-off (strtab-add shstrtab ".debug_info.dwo"))
@@ -90,5 +91,6 @@ Full DIE emission (types, variables, line numbers) is handled by emit-dwarf-dwo.
     (elf64-write-shdr out sh-info-off +sht-progbits+ 0 info-offset (length info) 0 0 1 0)
     (elf64-write-shdr out sh-abbrev-off +sht-progbits+ 0 abbrev-offset (length abbrev) 0 0 1 0)
     (elf64-write-shdr out sh-line-off +sht-progbits+ 0 line-offset (length line) 0 0 1 0)
-    (elf64-write-shdr out sh-shstrtab-off +sht-strtab+ 0 shstrtab-offset (length shstrtab-bytes) 0 0 1 0)
+    (elf64-write-shdr out sh-shstrtab-off +sht-strtab+ 0 shstrtab-offset
+                      (length shstrtab-bytes) 0 0 1 0)
     (binary-buffer-to-array out)))

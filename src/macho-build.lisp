@@ -171,7 +171,8 @@ constant data are rejected by the operating system."
                                   :nsects 1
                                   :maxprot 4    ; r--
                                   :initprot 4   ; r--
-                                  :cmdsize (+ +macho-segment-command-size+ (* +macho-section-size+ 1))
+                                  :cmdsize (+ +macho-segment-command-size+
+                                             (* +macho-section-size+ 1))
                                   :sections (list (make-section
                                                    :sectname "__const"
                                                    :segname "__DATA_CONST"

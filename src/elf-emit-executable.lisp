@@ -180,7 +180,9 @@
             (debug-line-idx (1+ strtab-idx))
             (shstrtab-idx (1+ debug-line-idx))
          ;; PT_LOAD segment sizes, derived from the section offsets above.
-         (entry-point (if (zerop (elf64-entry-point builder)) text-addr (elf64-entry-point builder)))
+         (entry-point (if (zerop (elf64-entry-point builder))
+                          text-addr
+                          (elf64-entry-point builder)))
          (text-load-filesz (+ (- text-offset 0) text-size))
          (ro-load-filesz (- (+ eh-frame-hdr-offset eh-frame-hdr-size) rodata-offset))
          (data-load-end (if dynamic-p (+ dynamic-offset dynamic-size) (+ data-offset data-size)))
@@ -269,7 +271,8 @@
     (elf64-write-shdr-with-addr out sh-eh-frame-off +sht-progbits+ +shf-alloc+
                                 (+ base eh-frame-offset) eh-frame-offset eh-frame-size 0 0 8 0)
     (elf64-write-shdr-with-addr out sh-eh-frame-hdr-off +sht-progbits+ +shf-alloc+
-                                (+ base eh-frame-hdr-offset) eh-frame-hdr-offset eh-frame-hdr-size 0 0 4 0)
+                                (+ base eh-frame-hdr-offset) eh-frame-hdr-offset
+                                eh-frame-hdr-size 0 0 4 0)
     (when dynamic-p
       (elf64-write-shdr-with-addr out sh-dynsym-off +sht-dynsym+ +shf-alloc+
                                   (+ base dynsym-offset) dynsym-offset dynsym-size

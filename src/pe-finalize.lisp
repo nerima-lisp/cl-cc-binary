@@ -151,7 +151,8 @@
             (%pe-set-directory directories +pe-directory-import+ (car import-dir) (cdr import-dir))
             (%pe-set-directory directories +pe-directory-iat+ (car iat-dir) (cdr iat-dir))
             (when (plusp (length edata-bytes))
-              (%pe-set-directory directories +pe-directory-export+ (car export-dir) (cdr export-dir)))
+              (%pe-set-directory directories +pe-directory-export+
+                                 (car export-dir) (cdr export-dir)))
             (when (plusp (length reloc-bytes))
               (%pe-set-directory directories +pe-directory-base-reloc+
                                  (pe-section-virtual-address reloc)

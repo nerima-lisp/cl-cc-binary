@@ -81,7 +81,10 @@ folding symbols that must remain distinct for external linking or debugging."
                    (s0 (logxor (%icf-rotr32 a 2) (%icf-rotr32 a 13) (%icf-rotr32 a 22)))
                    (maj (logxor (logand a b) (logand a c) (logand b c)))
                    (temp2 (%icf-u32 (+ s0 maj))))
-              (setf hh g g f f e e (%icf-u32 (+ d temp1)) d c c b b a a (%icf-u32 (+ temp1 temp2)))))
+              ;; One SHA-256 round: shift the working variables down by one and
+              ;; feed the two temporaries back in at e and a.
+              (setf hh g  g f  f e  e (%icf-u32 (+ d temp1))
+                    d  c  c b  b a  a (%icf-u32 (+ temp1 temp2)))))
           (loop for val in (list a b c d e f g hh)
                 for i below 8
                 do (setf (aref h i) (%icf-u32 (+ (aref h i) val)))))))

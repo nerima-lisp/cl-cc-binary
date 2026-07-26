@@ -91,7 +91,8 @@
   "Section contains some instructions.")
 
 ;; Compact unwind encodings (x86-64 subset).
-;; FR-247: Unwind Tables — Mach-O __unwind_info (compact unwind) for macOS native debugging and crash reporting
+;; FR-247: Unwind Tables — Mach-O __unwind_info (compact unwind) for macOS
+;; native debugging and crash reporting.
 (defconstant +compact-unwind-encoding-none+ 0
   "No compact unwind encoding.")
 (defconstant +compact-unwind-x86-64-mode-stack-immd+ #x02000000
