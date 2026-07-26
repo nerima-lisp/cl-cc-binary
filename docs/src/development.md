@@ -51,9 +51,14 @@ acts on `--non-interactive` before it reaches the script, so that command exits
 
 ## Writing tests
 
-Tests live in `t/`, one file per subject, named `<subject>-tests.lisp`, and are
-listed in the `cl-cc-binary/test` system in `cl-cc-binary.asd`. A file that is
-not listed is not run.
+Tests live in `t/`, named after the source file they cover:
+`src/got-plt.lisp` is tested by `t/got-plt-test.lisp`. When one source file has
+several distinct concerns, add the concern to the name —
+`t/macho-build-assemble-entry-point-test.lisp` and
+`t/macho-build-assemble-logging-test.lisp` both cover
+`src/macho-build-assemble.lisp`. Every file is listed in the
+`cl-cc-binary/test` system in `cl-cc-binary.asd`. A file that is not listed is
+not run.
 
 The framework is [cl-weave](https://nerima-lisp.github.io/cl-weave/) — nested
 `describe`, `it`, and `expect`. Do not introduce FiveAM, parachute, rove or

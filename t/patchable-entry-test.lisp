@@ -1,4 +1,4 @@
-;;;; t/patchable-entry-tests.lisp — Patchable entry tests
+;;;; t/patchable-entry-test.lisp — Patchable entry tests
 ;;;;
 ;;;; Tests for: emit-nop-sequence, emit-patchable-function-entry,
 ;;;; and with-patchable-entries (patchable-entry.lisp / FR-584).

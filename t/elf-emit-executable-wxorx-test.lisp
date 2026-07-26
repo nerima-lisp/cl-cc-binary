@@ -1,4 +1,4 @@
-;;;; t/binary-wxorx-tests.lisp — FR-694 ELF W^X tests
+;;;; t/elf-emit-executable-wxorx-test.lisp — FR-694 ELF W^X tests
 
 (in-package :cl-cc-binary/test)
 

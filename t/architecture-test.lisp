@@ -1,4 +1,4 @@
-;;;; t/architecture-tests.lisp — cross-architecture and ET_DYN coverage
+;;;; t/architecture-test.lisp — cross-architecture and ET_DYN coverage
 ;;;;
 ;;;; Every existing test exercised only :x86-64 and ET_EXEC output, leaving
 ;;;; the :arm64 code paths and the ET_DYN (PIE/shared-object) branch of

@@ -64,23 +64,23 @@ cl-cc package."
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-binary/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-binary.git")
   ;; cl-weave: the org's test framework. cl-log-kit is named explicitly because
-  ;; t/binary-logger-tests.lisp builds a logger directly rather than reaching it
+  ;; t/macho-build-assemble-logging-test.lisp builds a logger directly rather than reaching it
   ;; through cl-cc-binary.
   :depends-on ("cl-cc-binary" "cl-weave" "cl-log-kit")
   :pathname "t"
   :serial t
   :components
   ((:file "package")
-   (:file "binary-buffer-tests")
-   (:file "binary-constpool-tests")
-   (:file "binary-wxorx-tests")
-   (:file "architecture-tests")
-   (:file "got-plt-tests")
-   (:file "macho-fat-tests")
-   (:file "macho-build-tests")
-   (:file "macho-entry-point-tests")
-   (:file "binary-logger-tests")
-   (:file "patchable-entry-tests"))
+   (:file "macho-buffer-test")
+   (:file "elf-constant-pool-test")
+   (:file "elf-emit-executable-wxorx-test")
+   (:file "architecture-test")
+   (:file "got-plt-test")
+   (:file "macho-fat-test")
+   (:file "macho-build-compression-test")
+   (:file "macho-build-assemble-entry-point-test")
+   (:file "macho-build-assemble-logging-test")
+   (:file "patchable-entry-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-weave :run-all

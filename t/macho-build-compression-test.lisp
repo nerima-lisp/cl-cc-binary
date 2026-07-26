@@ -1,4 +1,4 @@
-;;;; t/macho-build-tests.lisp — Mach-O compression metadata tests
+;;;; t/macho-build-compression-test.lisp — Mach-O compression metadata tests
 ;;;;
 ;;;; Regression coverage for build-compression-metadata and the deterministic
 ;;;; (uncompressed) branch of the CPS compress-code-bytes-cps entry point

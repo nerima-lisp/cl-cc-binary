@@ -33,6 +33,14 @@ Added / Changed / Deprecated / Removed / Fixed / Security
 
 ### Changed
 
+- Test files are named after the source file they cover
+  (`t/<source>-test.lisp`), per `CODING_STANDARD.md`. The `<subject>-tests.lisp`
+  names are gone; where a name did not identify a source file it was replaced
+  by one that does, e.g. `binary-buffer-tests.lisp` →
+  `macho-buffer-test.lisp`. No test content changed.
+- `(:use :cl)` is now `(:use #:cl)`, and the `:binary` nickname was removed.
+  Nothing referenced the nickname; callers that want a short name can declare
+  it with `:local-nicknames`.
 - The ELF, Mach-O and PE emitters were split into per-format modules
   (`elf-emit-executable`, `elf-emit-relocatable`, `macho-build-assemble`,
   `macho-build-compression`, `pe-tables`, `pe-finalize`), with

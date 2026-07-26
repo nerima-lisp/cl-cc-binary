@@ -1,4 +1,4 @@
-;;;; t/macho-entry-point-tests.lisp — end-to-end BUILD-MACH-O coverage
+;;;; t/macho-build-assemble-entry-point-test.lisp — end-to-end BUILD-MACH-O coverage
 ;;;;
 ;;;; Nothing in this suite used to call BUILD-MACH-O, so the whole executable
 ;;;; assembly path was untested. When macho-serialize.lisp moved its

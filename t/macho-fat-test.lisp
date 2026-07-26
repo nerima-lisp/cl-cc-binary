@@ -1,4 +1,4 @@
-;;;; t/macho-fat-tests.lisp
+;;;; t/macho-fat-test.lisp
 
 (in-package :cl-cc-binary/test)
 
