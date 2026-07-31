@@ -32,7 +32,7 @@
 
 (defun %pe-patch-u32le (bytes offset value)
   (setf (aref bytes offset) (logand value #xff)
-        (aref bytes (+ offset 1)) (logand (ash value -8) #xff)
+        (aref bytes (1+ offset)) (logand (ash value -8) #xff)
         (aref bytes (+ offset 2)) (logand (ash value -16) #xff)
         (aref bytes (+ offset 3)) (logand (ash value -24) #xff)))
 
@@ -41,16 +41,6 @@
 
 (defun %pe-pad-to-align (buf alignment)
   (binary-buffer-write-pad buf (- (align-up (length buf) alignment) (length buf))))
-
-(defun %pe-rva-to-file-offset (rva sections)
-  "Translate RVA to file offset using SECTIONS."
-  (dolist (section sections (error "RVA #x~x is outside PE sections" rva))
-    (let ((start (pe-section-virtual-address section))
-          (end (+ (pe-section-virtual-address section)
-                  (max (pe-section-virtual-size section)
-                       (pe-section-raw-size section)))))
-      (when (and (<= start rva) (< rva end))
-        (return (+ (pe-section-raw-pointer section) (- rva start)))))))
 
 ;;; ------------------------------------------------------------
 ;;; DOS stub and data directories
@@ -62,7 +52,7 @@
 The first 64 bytes are the DOS header.  E_LFANEW points at #x80 where the PE
 signature is written.  The DOS program prints a Windows-required message when
 run as a DOS executable."
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     (binary-buffer-write-u16le buf +pe-dos-signature+)
     (binary-buffer-write-u16le buf #x0090) ; e_cblp
     (binary-buffer-write-u16le buf #x0003) ; e_cp
@@ -87,8 +77,25 @@ run as a DOS executable."
                                      #xb8 #x01 #x4c #xcd #x21))
     (binary-buffer-write-bytes buf (%pe-ascii-bytes "This program requires Windows" :nul nil))
     (binary-buffer-write-bytes buf '(#x0d #x0a #x24))
-    (%pe-pad-to buf #x80)
-    (binary-buffer-to-array buf)))
+    (%pe-pad-to buf #x80)))
+
+;;; IMAGE_EXPORT_DIRECTORY field offsets (winnt.h): a fixed 40-byte record,
+;;; reserved as zero bytes in PE-BUILD-EXPORT-TABLE and patched once every
+;;; field value is known (the function/name/ordinal tables that follow it in
+;;; the buffer determine several of its fields, so it cannot be written
+;;; sequentially the way DEFINE-BINARY-WRITER records are).
+(defconstant +pe-export-dir-characteristics+      0)
+(defconstant +pe-export-dir-timestamp+            4)
+(defconstant +pe-export-dir-major-version+        8)
+(defconstant +pe-export-dir-minor-version+       10)
+(defconstant +pe-export-dir-name+                12)
+(defconstant +pe-export-dir-base+                16)
+(defconstant +pe-export-dir-number-of-functions+ 20)
+(defconstant +pe-export-dir-number-of-names+     24)
+(defconstant +pe-export-dir-address-of-functions+     28)
+(defconstant +pe-export-dir-address-of-names+         32)
+(defconstant +pe-export-dir-address-of-name-ordinals+ 36)
+(defconstant +pe-export-dir-size+ 40)
 
 (defun %pe-empty-directory-table ()
   (make-array +pe-number-of-rva-and-sizes+
@@ -110,47 +117,49 @@ hint/name entries, and IAT entries."
   (let* ((imports (reverse imports))
          (descriptor-count (length imports))
          (descriptor-size (* 20 (1+ descriptor-count)))
-         (buf (elf-make-buffer))
          (descriptors nil)
          (iat-start 0)
-         (iat-end 0))
-    (binary-buffer-write-pad buf descriptor-size)
-    (dolist (import imports)
-      (let* ((functions (pe-import-functions import))
-             (ilt-offset (length buf)))
-        (binary-buffer-write-pad buf (* 8 (1+ (length functions))))
-        (let ((iat-offset (length buf)))
-          (when (zerop iat-start)
-            (setf iat-start iat-offset))
-          (binary-buffer-write-pad buf (* 8 (1+ (length functions))))
-          (let ((name-rvas nil))
-            (dolist (function functions)
-              (%pe-pad-to-align buf 2)
-              (let ((hint-name-offset (length buf)))
-                (binary-buffer-write-u16le buf 0)
-                (binary-buffer-write-bytes buf (%pe-ascii-bytes function))
-                (push (+ section-rva hint-name-offset) name-rvas)))
-            (let ((dll-name-offset (length buf)))
-              (binary-buffer-write-bytes buf (%pe-ascii-bytes (pe-import-dll-name import)))
-              (let ((name-rvas (nreverse name-rvas)))
-                (loop for rva in name-rvas
-                      for i from 0
-                      do (%pe-patch-u32le buf (+ ilt-offset (* i 8)) rva)
-                         (%pe-patch-u32le buf (+ iat-offset (* i 8)) rva))
-                (push (list :ilt (+ section-rva ilt-offset)
-                            :name (+ section-rva dll-name-offset)
-                            :iat (+ section-rva iat-offset))
-                      descriptors)
-                (setf iat-end (+ iat-offset (* 8 (1+ (length functions)))))))))))
-    (loop for descriptor in (nreverse descriptors)
-          for offset from 0 by 20
-          do (%pe-patch-u32le buf offset (getf descriptor :ilt))
-             (%pe-patch-u32le buf (+ offset 12) (getf descriptor :name))
-             (%pe-patch-u32le buf (+ offset 16) (getf descriptor :iat)))
-    (let ((bytes (binary-buffer-to-array buf)))
-      (values bytes
-              (cons section-rva descriptor-size)
-              (cons (+ section-rva iat-start) (- iat-end iat-start))))))
+         (iat-end 0)
+         (bytes
+           (with-byte-buffer (buf)
+             (binary-buffer-write-pad buf descriptor-size)
+             (dolist (import imports)
+               (let* ((functions (pe-import-functions import))
+                      (ilt-offset (length buf)))
+                 (binary-buffer-write-pad buf (* 8 (1+ (length functions))))
+                 (let ((iat-offset (length buf)))
+                   (when (zerop iat-start)
+                     (setf iat-start iat-offset))
+                   (binary-buffer-write-pad buf (* 8 (1+ (length functions))))
+                   (let ((name-rvas nil))
+                     (dolist (function functions)
+                       (%pe-pad-to-align buf 2)
+                       (let ((hint-name-offset (length buf)))
+                         (binary-buffer-write-u16le buf 0)
+                         (binary-buffer-write-bytes buf (%pe-ascii-bytes function))
+                         (push (+ section-rva hint-name-offset) name-rvas)))
+                     (let ((dll-name-offset (length buf)))
+                       (binary-buffer-write-bytes
+                        buf (%pe-ascii-bytes (pe-import-dll-name import)))
+                       (let ((name-rvas (nreverse name-rvas)))
+                         (loop for rva in name-rvas
+                               for i from 0
+                               do (%pe-patch-u32le buf (+ ilt-offset (* i 8)) rva)
+                                  (%pe-patch-u32le buf (+ iat-offset (* i 8)) rva))
+                         (push (list :ilt (+ section-rva ilt-offset)
+                                     :name (+ section-rva dll-name-offset)
+                                     :iat (+ section-rva iat-offset))
+                               descriptors)
+                         (setf iat-end
+                               (+ iat-offset (* 8 (1+ (length functions)))))))))))
+             (loop for descriptor in (nreverse descriptors)
+                   for offset from 0 by 20
+                   do (%pe-patch-u32le buf offset (getf descriptor :ilt))
+                      (%pe-patch-u32le buf (+ offset 12) (getf descriptor :name))
+                      (%pe-patch-u32le buf (+ offset 16) (getf descriptor :iat))))))
+    (values bytes
+            (cons section-rva descriptor-size)
+            (cons (+ section-rva iat-start) (- iat-end iat-start)))))
 
 (defun pe-build-export-table (exports section-rva dll-name)
   "Build an .edata export table for EXPORTS.
@@ -164,7 +173,7 @@ an export directory cons (RVA . SIZE)."
       (return-from pe-build-export-table
         (values (make-array 0 :element-type '(unsigned-byte 8)) (cons 0 0))))
     ;; IMAGE_EXPORT_DIRECTORY placeholder.
-    (binary-buffer-write-pad buf 40)
+    (binary-buffer-write-pad buf +pe-export-dir-size+)
     (let* ((dll-name-offset (length buf))
            (ordinal-base 1)
            (function-table-offset (progn
@@ -186,39 +195,41 @@ an export directory cons (RVA . SIZE)."
             (loop for name-rva in (nreverse name-rvas)
                   for offset from name-pointer-offset by 4
                   do (%pe-patch-u32le buf offset name-rva))
-            (%pe-patch-u32le buf 0 0) ; characteristics
-            (%pe-patch-u32le buf 4 0) ; timestamp
-            (%pe-patch-u16le buf 8 0) ; major version
-            (%pe-patch-u16le buf 10 0) ; minor version
-            (%pe-patch-u32le buf 12 (+ section-rva dll-name-offset))
-            (%pe-patch-u32le buf 16 ordinal-base)
-            (%pe-patch-u32le buf 20 count)
-            (%pe-patch-u32le buf 24 count)
-            (%pe-patch-u32le buf 28 (+ section-rva function-table-offset))
-            (%pe-patch-u32le buf 32 (+ section-rva name-pointer-offset))
-            (%pe-patch-u32le buf 36 (+ section-rva ordinal-table-offset))))))
+            (%pe-patch-u32le buf +pe-export-dir-characteristics+ 0)
+            (%pe-patch-u32le buf +pe-export-dir-timestamp+ 0)
+            (%pe-patch-u16le buf +pe-export-dir-major-version+ 0)
+            (%pe-patch-u16le buf +pe-export-dir-minor-version+ 0)
+            (%pe-patch-u32le buf +pe-export-dir-name+ (+ section-rva dll-name-offset))
+            (%pe-patch-u32le buf +pe-export-dir-base+ ordinal-base)
+            (%pe-patch-u32le buf +pe-export-dir-number-of-functions+ count)
+            (%pe-patch-u32le buf +pe-export-dir-number-of-names+ count)
+            (%pe-patch-u32le buf +pe-export-dir-address-of-functions+
+                             (+ section-rva function-table-offset))
+            (%pe-patch-u32le buf +pe-export-dir-address-of-names+
+                             (+ section-rva name-pointer-offset))
+            (%pe-patch-u32le buf +pe-export-dir-address-of-name-ordinals+
+                             (+ section-rva ordinal-table-offset))))))
     (let ((bytes (binary-buffer-to-array buf)))
       (values bytes (cons section-rva (length bytes))))))
 
 (defun pe-build-base-relocations (relocation-rvas section-rva)
   "Build a .reloc payload with IMAGE_REL_BASED_DIR64 entries."
   (declare (ignore section-rva))
-  (let ((buf (elf-make-buffer))
-        (pages (make-hash-table :test #'eql)))
+  (let ((pages (make-hash-table)))
     (dolist (rva relocation-rvas)
       (let ((page (logand rva #xfffff000))
             (offset (logand rva #xfff)))
         (push offset (gethash page pages))))
-    (maphash
-     (lambda (page offsets)
-       (let* ((entries (sort (copy-list offsets) #'<))
-              (entry-count (+ (length entries) (if (oddp (length entries)) 1 0)))
-              (block-size (+ 8 (* 2 entry-count))))
-         (binary-buffer-write-u32le buf page)
-         (binary-buffer-write-u32le buf block-size)
-         (dolist (offset entries)
-           (binary-buffer-write-u16le buf (logior (ash +pe-reloc-dir64+ 12) offset)))
-         (when (oddp (length entries))
-           (binary-buffer-write-u16le buf (ash +pe-reloc-absolute+ 12)))))
-     pages)
-    (binary-buffer-to-array buf)))
+    (with-byte-buffer (buf)
+      (maphash
+       (lambda (page offsets)
+         (let* ((entries (sort (copy-list offsets) #'<))
+                (entry-count (+ (length entries) (if (oddp (length entries)) 1 0)))
+                (block-size (+ 8 (* 2 entry-count))))
+           (binary-buffer-write-u32le buf page)
+           (binary-buffer-write-u32le buf block-size)
+           (dolist (offset entries)
+             (binary-buffer-write-u16le buf (logior (ash +pe-reloc-dir64+ 12) offset)))
+           (when (oddp (length entries))
+             (binary-buffer-write-u16le buf (ash +pe-reloc-absolute+ 12)))))
+       pages))))

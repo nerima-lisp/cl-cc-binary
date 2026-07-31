@@ -19,15 +19,49 @@
 
     # Runtime: optional structured-logging sink for Mach-O/ELF/PE emission
     # diagnostics. Silent unless a caller binds CL-CC/BINARY:*BINARY-LOGGER*.
-    # This is the system's only dependency.
+    # v2.0.0 drops the zero-runtime-dependency guarantee in favor of
+    # cl-date-kit/cl-concurrent-kit/cl-host-kit (below), used directly with no
+    # adapter layer.
     cl-log-kit = {
-      url = "github:nerima-lisp/cl-log-kit/v1.0.0";
+      url = "github:nerima-lisp/cl-log-kit/v2.0.0";
+      flake = false;
+    };
+
+    # Runtime: cl-log-kit's own runtime dependencies, pulled transitively so
+    # ASDF can resolve cl-log-kit's :depends-on from source (flake=false pulls
+    # a source tree, not a built package, so every transitive dependency needs
+    # its own input).
+    cl-date-kit = {
+      url = "github:nerima-lisp/cl-date-kit/v0.2.0";
+      flake = false;
+    };
+    cl-concurrent-kit = {
+      url = "github:nerima-lisp/cl-concurrent-kit/v0.1.0";
+      flake = false;
+    };
+    cl-host-kit = {
+      url = "github:nerima-lisp/cl-host-kit/v0.2.1";
+      flake = false;
+    };
+
+    # Runtime: timeout-guarded subprocess execution (SIGTERM->SIGKILL
+    # escalation) for the codesign invocation in WRITE-MACH-O-FILE, replacing
+    # a hand-rolled SB-EXT:RUN-PROGRAM + SB-EXT:WITH-TIMEOUT pair.
+    cl-process-kit = {
+      url = "github:nerima-lisp/cl-process-kit/v2.0.0";
+      flake = false;
+    };
+
+    # Runtime: cl-process-kit's own dependency (clock/sleeper boundaries),
+    # pulled transitively for the same reason as cl-log-kit's above.
+    cl-boundary-kit = {
+      url = "github:nerima-lisp/cl-boundary-kit/v1.0.0";
       flake = false;
     };
 
     # Test-only: the org's test framework.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.0.0";
+      url = "github:nerima-lisp/cl-weave/v1.1.0";
       flake = false;
     };
 
@@ -42,6 +76,11 @@
       self,
       nixpkgs,
       cl-log-kit,
+      cl-date-kit,
+      cl-concurrent-kit,
+      cl-host-kit,
+      cl-process-kit,
+      cl-boundary-kit,
       cl-weave,
       treefmt-nix,
       ...
@@ -58,8 +97,11 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      # What the shipped system needs: cl-log-kit and this tree.
-      runtimeRegistry = "${cl-log-kit}//:${self}//";
+      # What the shipped system needs: cl-log-kit, cl-process-kit, their own
+      # transitive dependencies, and this tree.
+      runtimeRegistry =
+        "${cl-log-kit}//:${cl-date-kit}//:${cl-concurrent-kit}//:${cl-host-kit}//"
+        + ":${cl-process-kit}//:${cl-boundary-kit}//:${self}//";
       # What the test system additionally needs.
       testRegistry = "${cl-weave}//:${runtimeRegistry}";
 
@@ -156,6 +198,33 @@
             dontInstall = true;
             meta = {
               description = "Rendered MkDocs (Material) documentation for cl-cc-binary";
+              homepage = "https://github.com/nerima-lisp/cl-cc-binary";
+              license = pkgs.lib.licenses.mit;
+            };
+          };
+
+          # SB-COVER HTML report over the cl-weave suite. Not part of
+          # `checks`: a coverage percentage is a number to read, not a
+          # pass/fail gate, and `sb-cover`'s instrumentation adds enough
+          # compile-time overhead that it does not belong in the fast path
+          # every `nix flake check` run takes. `nix build .#coverage` and
+          # open $out/cover-index.html.
+          coverage = pkgs.stdenvNoCC.mkDerivation {
+            pname = "cl-cc-binary-coverage";
+            inherit version;
+            src = self;
+            nativeBuildInputs = [ pkgs.sbcl ];
+            CL_SOURCE_REGISTRY = testRegistry;
+            buildPhase = ''
+              runHook preBuild
+              export HOME="$TMPDIR/home"
+              mkdir -p "$HOME" "$out"
+              sbcl --script run-coverage.lisp "$out"
+              runHook postBuild
+            '';
+            dontInstall = true;
+            meta = {
+              description = "SB-COVER HTML coverage report for the cl-cc-binary test suite";
               homepage = "https://github.com/nerima-lisp/cl-cc-binary";
               license = pkgs.lib.licenses.mit;
             };

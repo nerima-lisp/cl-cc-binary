@@ -2,42 +2,6 @@
 
 (in-package :cl-cc-binary/test)
 
-(defun %elf-u16le (bytes offset)
-  (+ (aref bytes offset)
-     (ash (aref bytes (+ offset 1)) 8)))
-
-(defun %elf-u32le (bytes offset)
-  (+ (aref bytes offset)
-     (ash (aref bytes (+ offset 1)) 8)
-     (ash (aref bytes (+ offset 2)) 16)
-     (ash (aref bytes (+ offset 3)) 24)))
-
-(defun %elf-u64le (bytes offset)
-  (loop for i below 8
-        sum (ash (aref bytes (+ offset i)) (* 8 i))))
-
-(defun %elf-c-string (bytes offset)
-  (with-output-to-string (out)
-    (loop for i from offset below (length bytes)
-          for byte = (aref bytes i)
-          until (zerop byte)
-          do (write-char (code-char byte) out))))
-
-(defun %elf-section-flags-by-name (bytes)
-  (let* ((shoff (%elf-u64le bytes 40))
-         (shentsize (%elf-u16le bytes 58))
-         (shnum (%elf-u16le bytes 60))
-         (shstrndx (%elf-u16le bytes 62))
-         (shstr-header (+ shoff (* shstrndx shentsize)))
-         (shstr-offset (%elf-u64le bytes (+ shstr-header 24)))
-         (result (make-hash-table :test #'equal)))
-    (dotimes (i shnum result)
-      (let* ((header (+ shoff (* i shentsize)))
-             (name-offset (%elf-u32le bytes header))
-             (name (%elf-c-string bytes (+ shstr-offset name-offset)))
-             (flags (%elf-u64le bytes (+ header 8))))
-        (setf (gethash name result) flags)))))
-
 (describe "FR-694 ELF W^X enforcement"
 
   (it "includes PT_GNU_STACK with PF_R|PF_W and no PF_X in executables"
@@ -54,7 +18,7 @@
             (setf gnu-stack-flags flags))))
       (expect gnu-stack-flags :to-be-truthy)
       (expect gnu-stack-flags :to-be (logior cl-cc/binary::+pf-r+ cl-cc/binary::+pf-w+))
-      (expect (= (logand gnu-stack-flags cl-cc/binary::+pf-x+) 0))))
+      (expect (zerop (logand gnu-stack-flags cl-cc/binary::+pf-x+)))))
 
   (it "keeps .text RX while .data/.bss stay RW and never executable"
     (let* ((builder (cl-cc/binary::make-elf64-executable))
@@ -71,6 +35,20 @@
       (expect text-flags :to-be (logior cl-cc/binary::+shf-alloc+ cl-cc/binary::+shf-execinstr+))
       (expect data-flags :to-be (logior cl-cc/binary::+shf-alloc+ cl-cc/binary::+shf-write+))
       (expect bss-flags :to-be (logior cl-cc/binary::+shf-alloc+ cl-cc/binary::+shf-write+))
-      (expect (= (logand text-flags cl-cc/binary::+shf-write+) 0))
-      (expect (= (logand data-flags cl-cc/binary::+shf-execinstr+) 0))
-      (expect (= (logand bss-flags cl-cc/binary::+shf-execinstr+) 0)))))
+      (expect (zerop (logand text-flags cl-cc/binary::+shf-write+)))
+      (expect (zerop (logand data-flags cl-cc/binary::+shf-execinstr+)))
+      (expect (zerop (logand bss-flags cl-cc/binary::+shf-execinstr+)))))
+
+  (it "elf64-verify-wx signals elf-wx-violation for a PT_LOAD segment with both PF_W and PF_X"
+    (let ((segments (list (list cl-cc/binary::+pt-load+
+                                (logior cl-cc/binary::+pf-w+ cl-cc/binary::+pf-x+)
+                                0 0 0 0 0 #x1000))))
+      (expect (lambda () (cl-cc/binary::elf64-verify-wx segments))
+              :to-throw 'cl-cc/binary:elf-wx-violation)))
+
+  (it "elf64-verify-wx returns true for PT_LOAD segments that are not both writable and executable"
+    (let ((segments (list (list cl-cc/binary::+pt-load+ cl-cc/binary::+pf-r+ 0 0 0 0 0 #x1000)
+                          (list cl-cc/binary::+pt-load+
+                                (logior cl-cc/binary::+pf-r+ cl-cc/binary::+pf-w+)
+                                0 0 0 0 0 #x1000))))
+      (expect (cl-cc/binary::elf64-verify-wx segments) :to-be-truthy))))

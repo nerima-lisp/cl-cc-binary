@@ -1,8 +1,9 @@
 # API Reference
 
-Every symbol exported from the `cl-cc/binary` package, as of version 0.1.0 —
-153 in total: 96 functions (43 operations plus 53 structure accessors), 1 macro,
-3 variables, 36 constants and 17 structure classes.
+Every symbol exported from the `cl-cc/binary` package, as of version 0.2.0 —
+171 in total: 107 functions (45 operations, 53 structure accessors and 9
+condition accessors), 2 macros, 3 variables, 36 constants, 17 structure classes
+and 6 condition classes.
 
 Symbols not listed here are internal, whatever their visibility from the
 package. In particular `binary-buffer`, `byte-buffer`, `build-compression-metadata`
@@ -116,6 +117,7 @@ Creates a `mach-o-builder` for `arch`, which is `:x86-64` or `:arm64`.
 |---|---|
 | `(elf64-add-load-segment builder vaddr memsz &key flags filesz align)` | `PT_LOAD` over `[vaddr, vaddr+memsz)`. `filesz` defaults to `memsz` (no `.bss` tail), `align` to 4 KiB, `flags` to `PF_R \| PF_X`. |
 | `(elf64-add-gnu-stack-segment builder &optional flags)` | `PT_GNU_STACK`, defaulting to RW with no exec. Linux requires it for a non-executable stack. |
+| `(elf64-add-gnu-relro-segment builder offset vaddr size &key align)` | `PT_GNU_RELRO` over the given range, read-only after relocation. |
 | `(elf64-add-rodata-bytes builder bytes)` | Appends constants to `.rodata`, returning the section offset. Allocated but not writable, so the mapping can protect them. |
 | `(elf64-add-rodata-string builder string)` | Adds to mergeable `.rodata.str`, returning the section offset. |
 | `(elf64-add-got-entry builder symbol-name)` | Reserves an 8-byte GOT slot in `.data`, returning its offset. |
@@ -218,8 +220,29 @@ code that is not in fact identical.
 (elf64-verify-wx segments)
 ```
 
-Signals an error if any `PT_LOAD` segment is both writable and executable. It
-verifies; it does not repair.
+Signals an `elf-wx-violation` if any `PT_LOAD` segment is both writable and
+executable. It verifies; it does not repair.
+
+## Conditions
+
+`cl-cc-binary-error` is the base condition every error this package signals
+derives from, so `(handler-case ... (cl-cc/binary:cl-cc-binary-error (c) ...))`
+catches everything this package signals. It names no slots or accessors of its
+own — it exists purely as the common superclass.
+
+Each subclass below carries `:reader`-bearing slots for programmatic
+inspection: the "Slots" column names the initargs, and "Accessors" the exported
+reader function for each (a leading `-` continues the previous column's
+prefix, matching the shorthand used for structure accessors elsewhere in this
+document).
+
+| Condition | Signaled by | Slots | Accessors |
+|---|---|---|---|
+| `value-out-of-range` | `dwarf-location-expression`, the `dwarf-eh-emit-*` short-form CFA emitters | `operation`, `value`, `low`, `high` | `value-out-of-range-operation`, `-value`, `-low`, `-high` |
+| `elf-wx-violation` | `elf64-verify-wx` | `segment` | `elf-wx-violation-segment` |
+| `patchable-entry-overflow` | `patch-function-entry` | `size`, `reserved` | `patchable-entry-overflow-size`, `-reserved` |
+| `pe-section-not-found` | `pe-finalize` | `name` | `pe-section-not-found-name` |
+| `macho-unknown-architecture` | `make-mach-o-builder` | `arch` | `macho-unknown-architecture-arch` |
 
 ## Buffers and serialization
 
@@ -232,6 +255,41 @@ verifies; it does not repair.
 Binds `stream-var` to a byte-accumulator closure and returns the collected bytes
 as a `(simple-array (unsigned-byte 8) (*))`. Call the closure with one byte at a
 time.
+
+### `with-byte-buffer`
+
+```lisp
+(with-byte-buffer (buffer-var) &body body)
+```
+
+Binds `buffer-var` to a fresh binary buffer, evaluates `body` for its writes to
+that buffer, and returns the accumulated bytes as a `(simple-array (unsigned-byte
+8) (*))`. This is the "build a buffer, write to it, return the bytes" shape every
+section/payload builder in the package repeats — every `build-dwarf-*-section`,
+`build-dwarf-eh-frame`, `elf64-build-*`, `compile-to-elf64`'s `.eh_frame`
+builders, and the PE table builders are written against it.
+
+### `binary-buffer-pad-and-write`
+
+```lisp
+(binary-buffer-pad-and-write buffer target-offset bytes)
+```
+
+Pads `buffer` with zero bytes up to `target-offset`, then writes `bytes`. The
+layout idiom every finalized ELF/Mach-O/PE image repeats once per section: pad
+from the current length to that section's known file offset, then place its
+bytes.
+
+### `buffer-pad-to`
+
+```lisp
+(buffer-pad-to buffer target-offset)
+```
+
+Pads `buffer` with zero bytes up to `target-offset`, without writing further
+bytes afterward. The `byte-buffer`-typed counterpart to
+`binary-buffer-pad-and-write`'s pad step, for builders that hold a
+`byte-buffer` instance rather than a raw binary buffer.
 
 ### Primitives
 

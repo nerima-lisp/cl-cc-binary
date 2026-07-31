@@ -17,7 +17,7 @@
 
 (defun %macho-u32le (bytes offset)
   (logior (aref bytes offset)
-          (ash (aref bytes (+ offset 1)) 8)
+          (ash (aref bytes (1+ offset)) 8)
           (ash (aref bytes (+ offset 2)) 16)
           (ash (aref bytes (+ offset 3)) 24)))
 
@@ -38,7 +38,7 @@
           (cl-cc/binary:add-text-segment builder code)
           (cl-cc/binary:add-entry-point builder 0)
           (let ((image (cl-cc/binary:build-mach-o builder code)))
-            (expect (> (length image) 0))
+            (expect (plusp (length image)))
             (expect (= (%macho-u32le image 0) cl-cc/binary:+mh-magic-64+))
             (expect (= (%macho-u32le image 12) cl-cc/binary:+mh-execute+)))))))
 
@@ -48,6 +48,5 @@
       (cl-cc/binary:add-text-segment builder code)
       (cl-cc/binary:add-entry-point builder 0)
       (cl-cc/binary:build-mach-o builder code)
-      (expect (> (cl-cc/binary:entry-point-command-entryoff
-                  (cl-cc/binary::mach-o-builder-entry-point builder))
-                 0)))))
+      (expect (plusp (cl-cc/binary:entry-point-command-entryoff
+                  (cl-cc/binary::mach-o-builder-entry-point builder)))))))

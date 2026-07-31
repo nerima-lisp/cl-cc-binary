@@ -41,7 +41,7 @@ STREAM-VAR is a function accepting a single (unsigned-byte 8) argument."
   "Emit COUNT bytes of NOP instructions into STREAM.
 STREAM must be a function accepting a single (unsigned-byte 8) argument,
 as produced by with-output-to-vector. Uses multi-byte NOPs (up to 9 bytes)."
-  (loop while (> count 0)
+  (loop while (plusp count)
         for n = (min count 9)
         for bytes = (cdr (assoc n *nop-sequences*))
         do (loop for byte across bytes do (funcall stream byte))
@@ -56,11 +56,11 @@ SystemTap, eBPF uprobes) followed by *PATCHABLE-ENTRY-AFTER* NOP bytes
 (for entry instrumentation).  The caller is responsible for recording
 the current stream position as the function entry label between these two
 NOP regions."
-  (when (> *patchable-entry-before* 0)
+  (when (plusp *patchable-entry-before*)
     (emit-nop-sequence stream *patchable-entry-before*))
   ;; The actual function entry point is here;
   ;; caller sets a label or marks the current position.
-  (when (> *patchable-entry-after* 0)
+  (when (plusp *patchable-entry-after*)
     (emit-nop-sequence stream *patchable-entry-after*)))
 
 ;;; ──── Hot patching support ────
@@ -71,8 +71,7 @@ The patched bytes must not exceed *PATCHABLE-ENTRY-BEFORE*.
 Uses sb-sys:sap-ref-8 for direct memory write."
   (let ((patch-size (length new-code-bytes)))
     (when (> patch-size *patchable-entry-before*)
-      (error "Patch size ~D exceeds reserved ~D bytes"
-             patch-size *patchable-entry-before*))
+      (error 'patchable-entry-overflow :size patch-size :reserved *patchable-entry-before*))
     (loop for i from 0 below patch-size
           for byte across new-code-bytes
           do (setf (sb-sys:sap-ref-8 (sb-sys:int-sap func-addr) i) byte))

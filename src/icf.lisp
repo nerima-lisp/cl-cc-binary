@@ -40,7 +40,7 @@ folding symbols that must remain distinct for external linking or debugging."
 (defun %icf-sha256-pad (bytes)
   (let* ((len (length bytes))
          (bit-len (* len 8))
-         (pad-len (mod (- 56 (+ len 1)) 64))
+         (pad-len (mod (- 56 (1+ len)) 64))
          (out (make-array (+ len 1 pad-len 8) :element-type '(unsigned-byte 8)
                           :initial-element 0)))
     (replace out bytes)
@@ -60,7 +60,7 @@ folding symbols that must remain distinct for external linking or debugging."
               for j = (+ chunk (* i 4))
               do (setf (aref w i)
                        (logior (ash (aref msg j) 24)
-                               (ash (aref msg (+ j 1)) 16)
+                               (ash (aref msg (1+ j)) 16)
                                (ash (aref msg (+ j 2)) 8)
                                (aref msg (+ j 3)))))
         (loop for i from 16 below 64 do
@@ -92,7 +92,7 @@ folding symbols that must remain distinct for external linking or debugging."
       (loop for word across h
             for j from 0 by 4 do
               (setf (aref out j) (ldb (byte 8 24) word)
-                    (aref out (+ j 1)) (ldb (byte 8 16) word)
+                    (aref out (1+ j)) (ldb (byte 8 16) word)
                     (aref out (+ j 2)) (ldb (byte 8 8) word)
                     (aref out (+ j 3)) (ldb (byte 8 0) word)))
       out)))
@@ -111,35 +111,36 @@ folding symbols that must remain distinct for external linking or debugging."
 (defun %icf-digest-key (digest)
   (coerce digest 'list))
 
-(defun icf-fold-functions (sections)
-  "Fold identical function SECTIONS.
+(defmacro define-icf-entry-accessor (name struct-accessor key)
+  "Define NAME reading KEY from an ICF function entry that may be an
+ICF-FUNCTION-SECTION instance (via STRUCT-ACCESSOR) or a plist/alist entry
+carrying KEY — the two representations ICF-MERGE-IDENTICAL-FUNCTIONS accepts,
+so every reader on that dual representation shares one dispatch shape.
 
-Returns three values: kept sections, a NAME->CANONICAL-NAME hash table, and the
-number of folded functions.  Sections marked LINKABLE-DISTINCT-P are never folded
-even if their machine code is byte-identical."
-  (let ((seen (make-hash-table :test #'equal))
-        (redirects (make-hash-table :test #'equal))
-        (kept '())
-        (folded 0))
-    (dolist (section sections)
-      (let ((name (icf-function-section-name section)))
-        (if (icf-function-section-linkable-distinct-p section)
-            (progn
-              (setf (gethash name redirects) name)
-              (push section kept))
-            (let* ((key (%icf-digest-key
-                         (icf-code-hash (icf-function-section-bytes section)
-                                        (icf-function-section-references section))))
-                   (canonical (gethash key seen)))
-              (if canonical
-                  (progn
-                    (setf (gethash name redirects) (icf-function-section-name canonical))
-                    (incf folded))
-                  (progn
-                    (setf (gethash key seen) section
-                          (gethash name redirects) name)
-                    (push section kept)))))))
-    (values (nreverse kept) redirects folded)))
+The list case discriminates plist from alist by its first element: an alist
+entry's first element is a cons, a plist's is a bare keyword. Trying GETF then
+falling back to ASSOC regardless of shape breaks for a plist missing KEY,
+since ASSOC calls CAR on each element and a plist's odd-indexed elements are
+not conses."
+  `(defun ,name (function)
+     (etypecase function
+       (icf-function-section (,struct-accessor function))
+       (list (if (consp (first function))
+                 (cdr (assoc ,key function))
+                 (getf function ,key))))))
+
+(define-icf-entry-accessor %icf-entry-name icf-function-section-name :name)
+(define-icf-entry-accessor %icf-entry-bytes icf-function-section-bytes :bytes)
+(define-icf-entry-accessor %icf-entry-references icf-function-section-references :references)
+(define-icf-entry-accessor %icf-entry-distinct-p
+    icf-function-section-linkable-distinct-p :linkable-distinct-p)
+
+(defun %icf-byte-hash (bytes references)
+  (sxhash (list (length bytes) (coerce bytes 'list) references)))
+
+(defun %icf-same-code-p (left right)
+  (and (equalp (%icf-entry-bytes left) (%icf-entry-bytes right))
+       (equal (%icf-entry-references left) (%icf-entry-references right))))
 
 (defun icf-merge-identical-functions (functions &key (enabled *icf-enabled*))
   "Merge byte-identical FUNCTIONS and return kept entries plus redirections.
@@ -149,56 +150,32 @@ FUNCTIONS may be ICF-FUNCTION-SECTION instances or plist/alist entries carrying
 keys and byte equality is rechecked before merging so collisions do not fold
 non-identical code.  Three values are returned: kept functions, a NAME->CANONICAL
 hash table, and the number of merged functions."
-  (if (not enabled)
-      (let ((redirects (make-hash-table :test #'equal)))
-        (dolist (function functions)
-          (let ((name (etypecase function
-                        (icf-function-section (icf-function-section-name function))
-                        (list (or (getf function :name) (cdr (assoc :name function)))))))
-            (setf (gethash name redirects) name)))
-        (values functions redirects 0))
-      (let ((buckets (make-hash-table :test #'eql))
+  (if enabled
+      (let ((buckets (make-hash-table))
             (redirects (make-hash-table :test #'equal))
             (kept '())
             (folded 0))
-        (labels ((name-of (function)
-                   (etypecase function
-                     (icf-function-section (icf-function-section-name function))
-                     (list (or (getf function :name) (cdr (assoc :name function))))))
-                 (bytes-of (function)
-                   (etypecase function
-                     (icf-function-section (icf-function-section-bytes function))
-                     (list (or (getf function :bytes) (cdr (assoc :bytes function))))))
-                 (refs-of (function)
-                   (etypecase function
-                     (icf-function-section (icf-function-section-references function))
-                     (list (or (getf function :references)
-                               (cdr (assoc :references function))))))
-                 (distinct-p (function)
-                   (etypecase function
-                     (icf-function-section (icf-function-section-linkable-distinct-p function))
-                     (list (or (getf function :linkable-distinct-p)
-                               (cdr (assoc :linkable-distinct-p function))))))
-                 (byte-hash (bytes references)
-                   (sxhash (list (length bytes) (coerce bytes 'list) references)))
-                 (same-code-p (left right)
-                   (and (equalp (bytes-of left) (bytes-of right))
-                        (equal (refs-of left) (refs-of right)))))
-          (dolist (function functions)
-            (let ((name (name-of function)))
-              (if (distinct-p function)
-                  (progn
-                    (setf (gethash name redirects) name)
-                    (push function kept))
-                  (let* ((hash (byte-hash (bytes-of function) (refs-of function)))
-                         (bucket (gethash hash buckets))
-                         (canonical (find function bucket :test #'same-code-p)))
-                    (if canonical
-                        (progn
-                          (setf (gethash name redirects) (name-of canonical))
-                          (incf folded))
-                        (progn
-                          (push function (gethash hash buckets))
-                          (setf (gethash name redirects) name)
-                          (push function kept)))))))
-          (values (nreverse kept) redirects folded)))))
+        (dolist (function functions)
+          (let ((name (%icf-entry-name function)))
+            (if (%icf-entry-distinct-p function)
+                (progn
+                  (setf (gethash name redirects) name)
+                  (push function kept))
+                (let* ((hash (%icf-byte-hash (%icf-entry-bytes function)
+                                             (%icf-entry-references function)))
+                       (bucket (gethash hash buckets))
+                       (canonical (find function bucket :test #'%icf-same-code-p)))
+                  (if canonical
+                      (progn
+                        (setf (gethash name redirects) (%icf-entry-name canonical))
+                        (incf folded))
+                      (progn
+                        (push function (gethash hash buckets))
+                        (setf (gethash name redirects) name)
+                        (push function kept)))))))
+        (values (nreverse kept) redirects folded))
+      (let ((redirects (make-hash-table :test #'equal)))
+        (dolist (function functions)
+          (let ((name (%icf-entry-name function)))
+            (setf (gethash name redirects) name)))
+        (values functions redirects 0))))

@@ -39,18 +39,18 @@ input. Exactly one continuation runs, and its return value becomes this
 function's return value."
   (declare (type (simple-array (unsigned-byte 8) (*)) code-bytes))
   (flet ((give-up () (funcall on-uncompressed)))
-    (if (not compress)
-        (give-up)
+    (if compress
         (let ((compress-fn (%find-sb-ext-compress))
               (original-size (length code-bytes)))
-          (if (not compress-fn)
-              (give-up)
+          (if compress-fn
               (handler-case
                   (let ((compressed (%ub8-vector (funcall compress-fn code-bytes))))
                     (if (< (length compressed) original-size)
                         (funcall on-compressed compressed original-size (length compressed))
                         (give-up)))
-                (error () (give-up))))))))
+                (error () (give-up)))
+              (give-up)))
+        (give-up))))
 
 (defun build-compression-metadata (algorithm original-size compressed-size)
   "Build a compact CL-CC compression metadata header.
@@ -58,13 +58,12 @@ function's return value."
 Header layout, little-endian:
   magic \"CLCZ\" | version u32 | algorithm u32 | original-size u64 |
   compressed-size u64."
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     (binary-buffer-write-bytes buf (map 'vector #'char-code "CLCZ"))
     (binary-buffer-write-u32le buf 1)
     (binary-buffer-write-u32le buf algorithm)
     (binary-buffer-write-u64le buf original-size)
-    (binary-buffer-write-u64le buf compressed-size)
-    (binary-buffer-to-array buf)))
+    (binary-buffer-write-u64le buf compressed-size)))
 
 (defun build-compressed-code-payload (compressed-bytes algorithm original-size compressed-size)
   "Return metadata followed by COMPRESSED-BYTES for a compressed code section."

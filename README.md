@@ -10,8 +10,9 @@ and executables, PE32+ images and DLLs, and WebAssembly module bytes — with th
 symbol tables, relocations, GOT/PLT stubs, DWARF and `.eh_frame` sections and
 patchable function entries that make them usable. It is the object-file layer of
 the [cl-cc](https://github.com/nerima-lisp/cl-cc) compiler, and a leaf: SBCL
-only, with [cl-log-kit](https://github.com/nerima-lisp/cl-log-kit) its single
-dependency and no ties to any other cl-cc package.
+only, with [cl-log-kit](https://github.com/nerima-lisp/cl-log-kit) and
+[cl-process-kit](https://github.com/nerima-lisp/cl-process-kit) its only two
+direct dependencies and no ties to any other cl-cc package.
 
 Full documentation is published at <https://nerima-lisp.github.io/cl-cc-binary/>.
 The source for that site lives in [docs/src/](docs/src/).
@@ -37,7 +38,7 @@ The source for that site lives in [docs/src/](docs/src/).
 ```nix
 # flake.nix
 inputs.cl-cc-binary = {
-  url = "github:nerima-lisp/cl-cc-binary/v0.1.0";
+  url = "github:nerima-lisp/cl-cc-binary/v0.2.0";
   flake = false;
 };
 ```
@@ -48,12 +49,20 @@ follow the default branch.
 ## Dependencies
 
 ```
-cl-cc-binary -> cl-log-kit
+cl-cc-binary -> cl-log-kit -> cl-date-kit
+cl-cc-binary -> cl-log-kit -> cl-concurrent-kit
+cl-cc-binary -> cl-log-kit -> cl-host-kit
+cl-cc-binary -> cl-process-kit -> cl-boundary-kit -> cl-log-kit
+cl-cc-binary -> cl-process-kit -> cl-log-kit
 ```
 
 `cl-log-kit` is required at load time but silent unless
-`cl-cc/binary:*binary-logger*` is bound. `cl-weave` is a test-only dependency
-and is not in the shipped system.
+`cl-cc/binary:*binary-logger*` is bound; since v2.0.0 it pulls in
+`cl-date-kit`, `cl-concurrent-kit` and `cl-host-kit` as its own runtime
+dependencies. `cl-process-kit` guards the `codesign` subprocess
+`write-mach-o-file` invokes with a timeout and SIGTERM->SIGKILL escalation,
+and depends on `cl-boundary-kit` and `cl-log-kit` directly. `cl-weave` is a
+test-only dependency and is not in the shipped system.
 
 ## Documentation
 

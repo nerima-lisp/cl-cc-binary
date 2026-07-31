@@ -23,7 +23,7 @@
 ARCH should be :X86-64 or :ARM64."
   (declare (type (member :x86-64 :arm64) arch))
   (let* ((cpu-spec (or (assoc arch *arch-cpu-specs*)
-                       (error "Unknown Mach-O arch: ~S" arch)))
+                       (error 'macho-unknown-architecture :arch arch)))
           (builder (make-instance 'mach-o-builder)))
     (setf (slot-value builder 'header)
           (make-mach-header :cputype    (second cpu-spec)

@@ -84,10 +84,12 @@ condition on every caller, the library reports it to an optional logger:
 ```
 
 The default is `nil`, and with `nil` the library emits nothing at all. This
-mirrors `cl-process-kit`'s `*process-logger*` convention. It is also the reason
-[cl-log-kit](https://nerima-lisp.github.io/cl-log-kit/) is a hard dependency of
-a package that is otherwise dependency-free: the binding has to exist even when
-nobody uses it.
+mirrors [cl-process-kit](https://nerima-lisp.github.io/cl-process-kit/)'s
+`*process-logger*` convention — fittingly, since `cl-process-kit:run` is what
+guards the `codesign` invocation itself with a timeout, and
+[cl-log-kit](https://nerima-lisp.github.io/cl-log-kit/) is what
+`*binary-logger*` is bound to. Both are hard dependencies: the binding has to
+exist even when nobody uses it.
 
 ## Optimization passes
 

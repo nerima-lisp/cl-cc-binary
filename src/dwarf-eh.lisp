@@ -54,14 +54,6 @@ the CL condition type stored in the cl-cc type table extension."
   (return-address-register +dwarf-reg-x86-64-rip+ :type integer)
   (fde-list nil :type list))
 
-(defun dwarf-eh-make-buffer ()
-  "Create a byte buffer for .eh_frame emission."
-  (elf-make-buffer))
-
-(defun dwarf-eh-final-bytes (buf)
-  "Return BUF as a byte vector."
-  (binary-buffer-to-array buf))
-
 (defun dwarf-eh-pad-to-align (buf alignment)
   "Pad BUF with DW_CFA_nop up to ALIGNMENT bytes."
   (loop while (not (zerop (mod (length buf) alignment)))
@@ -78,24 +70,33 @@ the CL condition type stored in the cl-cc type table extension."
   (elf-buf-u8 buf +dw-cfa-def-cfa-offset+)
   (elf64-write-uleb128 buf offset))
 
-(defun dwarf-eh-emit-offset (buf register factored-offset)
-  "Emit DW_CFA_offset REGISTER FACTORED-OFFSET."
-  (unless (<= 0 register #x3f)
-    (error "DW_CFA_offset short form supports registers 0..63, got ~D" register))
-  (elf-buf-u8 buf (logior +dw-cfa-offset+ register))
-  (elf64-write-uleb128 buf factored-offset))
+(defmacro define-dwarf-cfa-short-form (name lambda-list &key opcode operation-name checked-var
+                                                            trailing-body)
+  "Define NAME as a DWARF .eh_frame short-form CFA instruction emitter.
 
-(defun dwarf-eh-emit-advance-loc (buf delta)
-  "Emit DW_CFA_advance_loc DELTA using the short form."
-  (unless (<= 0 delta #x3f)
-    (error "DW_CFA_advance_loc short form supports deltas 0..63, got ~D" delta))
-  (elf-buf-u8 buf (logior +dw-cfa-advance-loc+ delta)))
+Every short form packs one argument into the low 6 bits of an OPCODE byte, so
+CHECKED-VAR (one of LAMBDA-LIST's parameters) must be 0..#x3f; OPERATION-NAME
+names it in the VALUE-OUT-OF-RANGE condition raised otherwise. TRAILING-BODY,
+if given, is spliced in after the opcode byte for short forms (like
+DW_CFA_offset) that carry an additional operand."
+  (let ((buf-var (first lambda-list)))
+    `(defun ,name ,lambda-list
+       ,(format nil "Emit ~A using the short form." operation-name)
+       (unless (<= 0 ,checked-var #x3f)
+         (error 'value-out-of-range :operation ,operation-name
+                                     :value ,checked-var :low 0 :high #x3f))
+       (elf-buf-u8 ,buf-var (logior ,opcode ,checked-var))
+       ,@trailing-body)))
 
-(defun dwarf-eh-emit-restore (buf register)
-  "Emit DW_CFA_restore REGISTER using the short form."
-  (unless (<= 0 register #x3f)
-    (error "DW_CFA_restore short form supports registers 0..63, got ~D" register))
-  (elf-buf-u8 buf (logior +dw-cfa-restore+ register)))
+(define-dwarf-cfa-short-form dwarf-eh-emit-offset (buf register factored-offset)
+  :opcode +dw-cfa-offset+ :operation-name "DW_CFA_offset" :checked-var register
+  :trailing-body ((elf64-write-uleb128 buf factored-offset)))
+
+(define-dwarf-cfa-short-form dwarf-eh-emit-advance-loc (buf delta)
+  :opcode +dw-cfa-advance-loc+ :operation-name "DW_CFA_advance_loc" :checked-var delta)
+
+(define-dwarf-cfa-short-form dwarf-eh-emit-restore (buf register)
+  :opcode +dw-cfa-restore+ :operation-name "DW_CFA_restore" :checked-var register)
 
 (defun dwarf-eh-condition-type-tag (type)
   "Return a deterministic 31-bit tag for CL condition TYPE names in LSDA.
@@ -135,32 +136,31 @@ Layout:
 The first four fields are consumed by libunwind personalities following the
 Itanium C++ ABI.  The final compact extension is cl-cc-specific and lets the
 personality verify Common Lisp condition types without C++ RTTI objects."
-  (let ((buf (dwarf-eh-make-buffer))
-        (call-site-buf (dwarf-eh-make-buffer))
-        (typed (remove-if #'dwarf-eh-call-site-cleanup-p call-sites)))
-    (dolist (cs call-sites)
-      (dwarf-eh-write-lsda-call-site call-site-buf cs))
-    (elf-buf-u8 buf +dw-eh-pe-omit+)          ; LPStart omitted
-    (elf-buf-u8 buf +dw-eh-pe-omit+)          ; TType pointer table omitted
-    (elf-buf-u8 buf +dw-eh-pe-uleb128+)       ; call-site encoding
-    (elf64-write-uleb128 buf (length call-site-buf))
-    (binary-buffer-write-bytes buf (dwarf-eh-final-bytes call-site-buf))
-    ;; cl-cc typed-handler extension.
-    (elf64-write-uleb128 buf (length typed))
-    (dolist (cs typed)
-      (elf64-write-uleb128 buf (dwarf-eh-call-site-action cs))
-      (elf64-write-uleb128 buf (dwarf-eh-condition-type-tag
-                                (dwarf-eh-call-site-type cs)))
-      (elf-buf-u8 buf (if (dwarf-eh-call-site-cleanup-p cs) 1 0)))
-    (dwarf-eh-final-bytes buf)))
+  (let* ((call-site-buf
+           (with-byte-buffer (call-site-buf)
+             (dolist (cs call-sites)
+               (dwarf-eh-write-lsda-call-site call-site-buf cs))))
+         (typed (remove-if #'dwarf-eh-call-site-cleanup-p call-sites)))
+    (with-byte-buffer (buf)
+      (elf-buf-u8 buf +dw-eh-pe-omit+)          ; LPStart omitted
+      (elf-buf-u8 buf +dw-eh-pe-omit+)          ; TType pointer table omitted
+      (elf-buf-u8 buf +dw-eh-pe-uleb128+)       ; call-site encoding
+      (elf64-write-uleb128 buf (length call-site-buf))
+      (binary-buffer-write-bytes buf call-site-buf)
+      ;; cl-cc typed-handler extension.
+      (elf64-write-uleb128 buf (length typed))
+      (dolist (cs typed)
+        (elf64-write-uleb128 buf (dwarf-eh-call-site-action cs))
+        (elf64-write-uleb128 buf (dwarf-eh-condition-type-tag
+                                  (dwarf-eh-call-site-type cs)))
+        (elf-buf-u8 buf (if (dwarf-eh-call-site-cleanup-p cs) 1 0))))))
 
 (defun dwarf-eh-default-cie-instructions ()
   "Return initial x86-64 CFA rules: CFA = RSP+8; RIP saved at CFA-8."
-  (let ((buf (dwarf-eh-make-buffer)))
+  (with-byte-buffer (buf)
     (dwarf-eh-emit-def-cfa buf +dwarf-reg-x86-64-rsp+ 8)
     ;; data alignment factor is -8, so factored offset 1 means CFA-8.
-    (dwarf-eh-emit-offset buf +dwarf-reg-x86-64-rip+ 1)
-    (dwarf-eh-final-bytes buf)))
+    (dwarf-eh-emit-offset buf +dwarf-reg-x86-64-rip+ 1)))
 
 (defun dwarf-eh-encode-instruction-list (instructions)
   "Encode symbolic CFI INSTRUCTIONS into bytes.
@@ -171,7 +171,7 @@ Supported entries:
   (:advance-loc delta)
   (:restore register)
 Raw byte vectors may also be supplied for pre-encoded instructions."
-  (let ((buf (dwarf-eh-make-buffer)))
+  (with-byte-buffer (buf)
     (dolist (inst instructions)
       (etypecase inst
         (vector (binary-buffer-write-bytes buf inst))
@@ -192,33 +192,33 @@ Raw byte vectors may also be supplied for pre-encoded instructions."
            (:restore
             (destructuring-bind (_ register) inst
               (declare (ignore _))
-              (dwarf-eh-emit-restore buf register)))))))
-    (dwarf-eh-final-bytes buf)))
+              (dwarf-eh-emit-restore buf register)))))))))
 
 (defun dwarf-eh-write-cie (buf frame)
   "Append one CIE to BUF and return its starting offset."
   (let* ((cie-start (length buf))
-         (body (dwarf-eh-make-buffer)))
-    (binary-buffer-write-u32le body 0) ; CIE_id for .eh_frame
-    (elf-buf-u8 body 1)                ; CIE version
-    (binary-buffer-write-bytes body (map 'vector #'char-code "zPLR"))
-    (elf-buf-u8 body 0)                ; NUL-terminated augmentation string
-    (elf64-write-uleb128 body (dwarf-eh-frame-code-alignment-factor frame))
-    (elf64-write-sleb128 body (dwarf-eh-frame-data-alignment-factor frame))
-    (elf64-write-uleb128 body (dwarf-eh-frame-return-address-register frame))
-    ;; Augmentation data: personality encoding + placeholder personality pointer
-    ;; + LSDA encoding + FDE pointer encoding.  The pure emitter has no relocation
-    ;; records here, so zero is a linker-resolved placeholder for
-    ;; clcc_personality_v0.
-    (elf64-write-uleb128 body 7)
-    (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; P: personality pointer encoding
-    (binary-buffer-write-u32le body 0)        ; P: clcc_personality_v0 relocation slot
-    (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; L: LSDA pointer encoding
-    (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; R: FDE initial_location/range encoding
-    (binary-buffer-write-bytes body (dwarf-eh-default-cie-instructions))
-    (dwarf-eh-pad-to-align body 8)
+         (body
+           (with-byte-buffer (body)
+             (binary-buffer-write-u32le body 0) ; CIE_id for .eh_frame
+             (elf-buf-u8 body 1)                ; CIE version
+             (binary-buffer-write-bytes body (map 'vector #'char-code "zPLR"))
+             (elf-buf-u8 body 0)                ; NUL-terminated augmentation string
+             (elf64-write-uleb128 body (dwarf-eh-frame-code-alignment-factor frame))
+             (elf64-write-sleb128 body (dwarf-eh-frame-data-alignment-factor frame))
+             (elf64-write-uleb128 body (dwarf-eh-frame-return-address-register frame))
+             ;; Augmentation data: personality encoding + placeholder personality pointer
+             ;; + LSDA encoding + FDE pointer encoding.  The pure emitter has no relocation
+             ;; records here, so zero is a linker-resolved placeholder for
+             ;; clcc_personality_v0.
+             (elf64-write-uleb128 body 7)
+             (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; P: personality pointer encoding
+             (binary-buffer-write-u32le body 0)        ; P: clcc_personality_v0 relocation slot
+             (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; L: LSDA pointer encoding
+             (elf-buf-u8 body +dw-eh-pe-pcrel-sdata4+) ; R: FDE initial_location/range encoding
+             (binary-buffer-write-bytes body (dwarf-eh-default-cie-instructions))
+             (dwarf-eh-pad-to-align body 8))))
     (binary-buffer-write-u32le buf (length body))
-    (binary-buffer-write-bytes buf (dwarf-eh-final-bytes body))
+    (binary-buffer-write-bytes buf body)
     cie-start))
 
 (defun dwarf-eh-write-fde (buf cie-start fde)
@@ -226,28 +226,31 @@ Raw byte vectors may also be supplied for pre-encoded instructions."
   (let* ((fde-start (length buf))
          ;; .eh_frame CIE_pointer is a backwards distance from the pointer field.
          (cie-pointer (- (+ fde-start 4) cie-start))
-         (body (dwarf-eh-make-buffer)))
-    (binary-buffer-write-u32le body cie-pointer)
-    ;; With DW_EH_PE_pcrel|sdata4, relocatable objects keep initial_location at
-    ;; zero for the linker/loader to resolve.  Executable images can pass an
-    ;; already-finalized relative location.
-    (binary-buffer-write-u32le body (logand (dwarf-eh-fde-initial-location fde) #xffffffff))
-    (binary-buffer-write-u32le body (logand (dwarf-eh-fde-address-range fde) #xffffffff))
-    (let ((lsda (dwarf-eh-fde-lsda fde)))
-      (if (and lsda (plusp (length lsda)))
-          (progn
-            ;; FDE augmentation contains the pcrel sdata4 LSDA pointer.  This
-            ;; relocatable writer leaves the slot at zero; executable builders
-            ;; can place LSDA bytes in .gcc_except_table and relocate it.
-            (elf64-write-uleb128 body 4)
-            (binary-buffer-write-u32le body 0))
-          (elf64-write-uleb128 body 0)))
-    (binary-buffer-write-bytes body
-                               (dwarf-eh-encode-instruction-list
-                                (dwarf-eh-fde-instructions fde)))
-    (dwarf-eh-pad-to-align body 8)
+         (body
+           (with-byte-buffer (body)
+             (binary-buffer-write-u32le body cie-pointer)
+             ;; With DW_EH_PE_pcrel|sdata4, relocatable objects keep initial_location at
+             ;; zero for the linker/loader to resolve.  Executable images can pass an
+             ;; already-finalized relative location.
+             (binary-buffer-write-u32le body (logand (dwarf-eh-fde-initial-location fde)
+                                                      #xffffffff))
+             (binary-buffer-write-u32le body (logand (dwarf-eh-fde-address-range fde)
+                                                      #xffffffff))
+             (let ((lsda (dwarf-eh-fde-lsda fde)))
+               (if (and lsda (plusp (length lsda)))
+                   (progn
+                     ;; FDE augmentation contains the pcrel sdata4 LSDA pointer.  This
+                     ;; relocatable writer leaves the slot at zero; executable builders
+                     ;; can place LSDA bytes in .gcc_except_table and relocate it.
+                     (elf64-write-uleb128 body 4)
+                     (binary-buffer-write-u32le body 0))
+                   (elf64-write-uleb128 body 0)))
+             (binary-buffer-write-bytes body
+                                        (dwarf-eh-encode-instruction-list
+                                         (dwarf-eh-fde-instructions fde)))
+             (dwarf-eh-pad-to-align body 8))))
     (binary-buffer-write-u32le buf (length body))
-    (binary-buffer-write-bytes buf (dwarf-eh-final-bytes body))))
+    (binary-buffer-write-bytes buf body)))
 
 (defun build-dwarf-eh-frame (fde-list &key (code-alignment-factor 1)
                                       (data-alignment-factor -8)
@@ -257,24 +260,13 @@ Raw byte vectors may also be supplied for pre-encoded instructions."
 Each FDE describes a protected PC range and optional frame-state transitions.
   The emitted CIE uses augmentation string zPLR, x86-64 data alignment -8, and
 return-address register RIP (DWARF register 16)."
-  (let* ((frame (make-dwarf-eh-frame
-                 :code-alignment-factor code-alignment-factor
-                 :data-alignment-factor data-alignment-factor
-                 :return-address-register return-address-register
-                 :fde-list fde-list))
-         (buf (dwarf-eh-make-buffer))
-         (cie-start (dwarf-eh-write-cie buf frame)))
-    (dolist (fde (dwarf-eh-frame-fde-list frame))
-      (dwarf-eh-write-fde buf cie-start fde))
-    (dwarf-eh-final-bytes buf)))
+  (let ((frame (make-dwarf-eh-frame
+                :code-alignment-factor code-alignment-factor
+                :data-alignment-factor data-alignment-factor
+                :return-address-register return-address-register
+                :fde-list fde-list)))
+    (with-byte-buffer (buf)
+      (let ((cie-start (dwarf-eh-write-cie buf frame)))
+        (dolist (fde (dwarf-eh-frame-fde-list frame))
+          (dwarf-eh-write-fde buf cie-start fde))))))
 
-(defun elf64-build-eh-frame (text-size)
-  "Build a minimal x86-64 .eh_frame with one FDE covering .text.
-
-This compatibility wrapper is used by the ELF backend.  The richer
-BUILD-DWARF-EH-FRAME entry point accepts multiple FDE ranges and CFI rows."
-  (build-dwarf-eh-frame
-   (list (make-dwarf-eh-fde
-          :initial-location 0
-          :address-range text-size
-          :instructions '((:def-cfa-offset 8))))))

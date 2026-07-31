@@ -62,3 +62,4 @@ coverage.dat
 # src/.paredit.cleanup/ already exists here.
 .paredit.cleanup/
 *.paredit-tmp-*
+.verify/

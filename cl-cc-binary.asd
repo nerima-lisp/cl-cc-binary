@@ -16,19 +16,25 @@ cl-cc package."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.1.0"
+  :version "0.2.0"
   :homepage "https://github.com/nerima-lisp/cl-cc-binary"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-binary/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-binary.git")
   ;; cl-log-kit: optional structured diagnostics for otherwise-silent failure
   ;; paths (a timed-out or failed codesign call in WRITE-MACH-O-FILE). Silent
-  ;; unless a caller binds CL-CC/BINARY:*BINARY-LOGGER*. This is the system's
-  ;; only dependency; DEPENDENCY_POLICY.md caps an L3 package at depth 1.
-  :depends-on ("cl-log-kit")
+  ;; unless a caller binds CL-CC/BINARY:*BINARY-LOGGER*.
+  ;; cl-process-kit: timeout-guarded subprocess execution (SIGTERM->SIGKILL
+  ;; escalation) for the codesign invocation in WRITE-MACH-O-FILE, replacing a
+  ;; hand-rolled SB-EXT:RUN-PROGRAM + SB-EXT:WITH-TIMEOUT pair with the org's
+  ;; dedicated toolkit for exactly this problem. L2, depth 2; pulls in
+  ;; cl-boundary-kit transitively, bringing this system's depth to 3 (DEPENDENCY_POLICY.md
+  ;; caps L3 at depth 4).
+  :depends-on ("cl-log-kit" "cl-process-kit")
   :pathname "src"
   :serial t
   :components
   ((:file "package")
+   (:file "conditions")
    (:file "binary-struct")
    (:file "binary-writer")
    (:file "macho")
@@ -37,7 +43,14 @@ cl-cc package."
    (:file "macho-serialize")
    (:file "macho-build")
    (:file "macho-build-compression")
+   (:file "macho-build-text-segment")
+   (:file "macho-build-dyld")
+   (:file "macho-build-layout")
+   (:file "macho-build-serialize")
    (:file "macho-build-assemble")
+   (:file "macho-codesign")
+   (:file "elf-constants")
+   (:file "elf-strtab")
    (:file "elf")
    (:file "icf")
    (:file "got-plt")
@@ -47,7 +60,7 @@ cl-cc package."
    (:file "elf-emit")
    (:file "elf-emit-relocatable")
    (:file "elf-emit-executable")
-   (:file "dwarf-dwo")
+   (:file "elf-compile")
    (:file "pe")
    (:file "pe-tables")
    (:file "pe-finalize")
@@ -59,7 +72,7 @@ cl-cc package."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.1.0"
+  :version "0.2.0"
   :homepage "https://github.com/nerima-lisp/cl-cc-binary"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-binary/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-binary.git")
@@ -71,16 +84,26 @@ cl-cc package."
   :serial t
   :components
   ((:file "package")
+   (:file "helpers-byte-reader")
    (:file "macho-buffer-test")
+   (:file "elf-strtab-test")
+   (:file "elf-builder-test")
    (:file "elf-constant-pool-test")
    (:file "elf-emit-executable-wxorx-test")
+   (:file "elf-compile-executes-test")
    (:file "architecture-test")
    (:file "got-plt-test")
    (:file "macho-fat-test")
    (:file "macho-build-compression-test")
    (:file "macho-build-assemble-entry-point-test")
    (:file "macho-build-assemble-logging-test")
-   (:file "patchable-entry-test"))
+   (:file "macho-build-executes-test")
+   (:file "patchable-entry-test")
+   (:file "pe-finalize-test")
+   (:file "icf-test")
+   (:file "dwarf-test")
+   (:file "dwarf-eh-test")
+   (:file "wasm-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-weave :run-all

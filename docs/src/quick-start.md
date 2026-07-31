@@ -4,7 +4,7 @@ This walks one task all the way through: taking twelve bytes of x86-64 machine
 code and writing them out as a Linux ELF executable. The last section shows the
 whole thing as a single form.
 
-Everything below was run against version 0.1.0; the byte counts are the actual
+Everything below was run against version 0.2.0; the byte counts are the actual
 output.
 
 ## The input

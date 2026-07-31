@@ -15,7 +15,7 @@
            (second (cl-cc/binary:elf64-add-rodata-bytes builder (%constpool-ub8 '(9 8))))
            (third (cl-cc/binary:elf64-add-rodata-bytes builder (%constpool-ub8 '(1 2 3 4)))))
       (expect (= first third))
-      (expect (= first 0))
+      (expect (zerop first))
       (expect (= second 4))
       (expect (= (length (cl-cc/binary::elf64-rodata-buf builder)) 6))))
 
@@ -26,15 +26,15 @@
            (third (cl-cc/binary:elf64-add-rodata-string builder "hello")))
       (cl-cc/binary::elf64-add-text-bytes builder #(195))
       (expect (= first third))
-      (expect (= first 0))
+      (expect (zerop first))
       (expect (= second 6))
       (let* ((flags (%elf-section-flags-by-name (cl-cc/binary::elf64-finalize builder)))
              (string-flags (gethash ".rodata.str" flags)))
         (expect string-flags :to-be (logior cl-cc/binary::+shf-alloc+
                                             cl-cc/binary::+shf-merge+
                                             cl-cc/binary::+shf-strings+))
-        (expect (= (logand string-flags cl-cc/binary::+shf-write+) 0))
-        (expect (= (logand string-flags cl-cc/binary::+shf-execinstr+) 0)))))
+        (expect (zerop (logand string-flags cl-cc/binary::+shf-write+)))
+        (expect (zerop (logand string-flags cl-cc/binary::+shf-execinstr+))))))
 
   (it "keeps one copy of repeated immutable __DATA_CONST payloads"
     (let ((builder (cl-cc/binary:make-mach-o-builder :x86-64)))

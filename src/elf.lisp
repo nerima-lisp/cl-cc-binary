@@ -11,161 +11,6 @@
 (in-package :cl-cc/binary)
 
 ;;; ------------------------------------------------------------
-;;; ELF64 Constants
-;;; ------------------------------------------------------------
-
-(defconstant +elf-magic-0+ #x7f)
-(defconstant +elf-magic-1+ #x45)  ; E
-(defconstant +elf-magic-2+ #x4c)  ; L
-(defconstant +elf-magic-3+ #x46)  ; F
-
-(defconstant +elf-class-64+    2)   ; ELFCLASS64
-(defconstant +elf-data-lsb+    1)   ; ELFDATA2LSB (little-endian)
-(defconstant +elf-version-cur+ 1)   ; EV_CURRENT
-(defconstant +elf-osabi-none+  0)   ; ELFOSABI_NONE
-(defconstant +elf-type-rel+    1)   ; ET_REL (relocatable)
-(defconstant +elf-type-exec+   2)   ; ET_EXEC (executable) — FR-291
-(defconstant +elf-type-dyn+    3)   ; ET_DYN (shared object / PIE)
-(defconstant +elf-machine-x86-64+ #x3e)  ; EM_X86_64
-(defconstant +elf-machine-aarch64+ #xB7) ; EM_AARCH64
-
-;;; Section header types
-(defconstant +sht-null+     0)
-(defconstant +sht-progbits+ 1)
-(defconstant +sht-symtab+   2)
-(defconstant +sht-strtab+   3)
-(defconstant +sht-rela+     4)
-(defconstant +sht-dynamic+  6)
-(defconstant +sht-nobits+   8)
-(defconstant +sht-dynsym+   11)
-
-;;; Section header flags
-(defconstant +shf-write+      1)
-(defconstant +shf-alloc+      2)
-(defconstant +shf-execinstr+  4)
-(defconstant +shf-merge+      #x10)
-(defconstant +shf-strings+    #x20)
-(defconstant +shf-compressed+ #x800)
-
-;;; Compression algorithms for Elf64_Chdr.
-(defconstant +elfcompress-zlib+ 1)
-
-;;; Symbol binding
-(defconstant +stb-local+  0)
-(defconstant +stb-global+ 1)
-(defconstant +stb-weak+   2)
-
-;;; Symbol type
-(defconstant +stt-notype+  0)
-(defconstant +stt-object+  1)
-(defconstant +stt-func+    2)
-(defconstant +stt-section+ 3)
-(defconstant +stt-file+    4)
-
-;;; Relocation types (System V AMD64 ABI §4.4)
-(defconstant +r-x86-64-none+      0)
-(defconstant +r-x86-64-64+        1)
-(defconstant +r-x86-64-pc32+      2)
-(defconstant +r-x86-64-got32+     3)
-(defconstant +r-x86-64-plt32+     4)
-(defconstant +r-x86-64-copy+      5)
-(defconstant +r-x86-64-glob-dat+  6)
-(defconstant +r-x86-64-jump-slot+ 7)
-(defconstant +r-x86-64-relative+  8)
-(defconstant +r-x86-64-gotpcrel+  9)
-(defconstant +r-x86-64-32+       10)
-(defconstant +r-x86-64-32s+      11)
-
-;;; Program header types (FR-291: ELF executable generation)
-(defconstant +pt-null+    0)    ; PT_NULL
-(defconstant +pt-load+    1)    ; PT_LOAD — loadable segment
-(defconstant +pt-dynamic+ 2)    ; PT_DYNAMIC
-(defconstant +pt-interp+  3)    ; PT_INTERP
-(defconstant +pt-note+    4)    ; PT_NOTE
-(defconstant +pt-phdr+    6)    ; PT_PHDR — program header table
-(defconstant +pt-gnu-stack+ #x6474e551)  ; PT_GNU_STACK
-(defconstant +pt-gnu-relro+ #x6474e552)  ; PT_GNU_RELRO
-
-;;; Dynamic section tags
-(defconstant +dt-null+    0)
-(defconstant +dt-needed+  1)
-(defconstant +dt-strtab+  5)
-(defconstant +dt-symtab+  6)
-(defconstant +dt-rela+    7)
-(defconstant +dt-relasz+  8)
-(defconstant +dt-relaent+ 9)
-(defconstant +dt-strsz+   10)
-(defconstant +dt-syment+  11)
-(defconstant +dt-jmprel+  23)
-(defconstant +dt-pltrelsz+ 2)
-(defconstant +dt-pltrel+  20)
-(defconstant +dt-flags+   30)
-(defconstant +df-bind-now+ #x8)
-
-;;; Program header flags
-(defconstant +pf-x+ 1)          ; executable
-(defconstant +pf-w+ 2)          ; writable
-(defconstant +pf-r+ 4)          ; readable
-
-;;; ELF64 program header size
-(defconstant +elf64-phdr-size+ 56)  ; Elf64_Phdr
-(defconstant +elf-page-size+ #x1000)
-(defconstant +elf64-exec-base+ #x400000)
-(defparameter +elf64-default-interpreter+ "/lib64/ld-linux-x86-64.so.2")
-
-;;; ELF64 structure sizes (bytes)
-(defconstant +elf64-ehdr-size+ 64)   ; ELF header
-(defconstant +elf64-shdr-size+ 64)   ; Section header entry
-(defconstant +elf64-sym-size+  24)   ; Symbol table entry (Elf64_Sym)
-(defconstant +elf64-rela-size+ 24)   ; Relocation entry with addend (Elf64_Rela)
-
-;;; ------------------------------------------------------------
-;;; Byte Buffer Helpers
-;;; ------------------------------------------------------------
-
-(defun elf-make-buffer ()
-  "Create a fresh byte buffer."
-  (make-binary-buffer 0))
-
-(defun elf-buf-u8 (buf val)
-  "Write 1 byte to buffer."
-  (binary-buffer-write-u8 buf (logand val #xff)))
-
-
-;;; ------------------------------------------------------------
-;;; String Table Builder
-;;; ------------------------------------------------------------
-
-(defstruct (strtab-builder (:conc-name stb-))
-  "Builds an ELF string table section."
-  (buf (elf-make-buffer))
-  (offset 0)
-  (map (make-hash-table :test #'equal)))
-
-(defun make-strtab ()
-  "Create a new string table, pre-inserting the empty string at offset 0."
-  (let ((st (make-strtab-builder)))
-    ;; ELF strtab always starts with a NUL byte (empty string at offset 0)
-    (elf-buf-u8 (stb-buf st) 0)
-    (setf (stb-offset st) 1)
-    (setf (gethash "" (stb-map st)) 0)
-    st))
-
-(defun strtab-add (st name)
-  "Add NAME to string table, return its byte offset. Deduplicates."
-  (or (gethash name (stb-map st))
-      (let ((offset (stb-offset st)))
-        (setf (gethash name (stb-map st)) offset)
-        (loop for c across name do (elf-buf-u8 (stb-buf st) (char-code c)))
-        (elf-buf-u8 (stb-buf st) 0)   ; NUL terminator
-        (setf (stb-offset st) (+ offset (length name) 1))
-        offset)))
-
-(defun strtab-bytes (st)
-  "Return the strtab as a byte array."
-  (binary-buffer-to-array (stb-buf st)))
-
-;;; ------------------------------------------------------------
 ;;; ELF64 Builder
 ;;; ------------------------------------------------------------
 
@@ -226,10 +71,6 @@ FR-291: Extended with program header and entry point support for executables."
                        :interpreter interpreter
                        :shared-object shared-object))
 
-(defun make-elf64-shared-library (&key (machine +elf-machine-x86-64+) (entry-point 0))
-  "Create an ELF64 ET_DYN shared-library builder without PT_INTERP."
-  (make-elf64-dynamic :machine machine :entry-point entry-point :shared-object t))
-
 (defun elf64-add-text-bytes (builder bytes)
   "Append BYTES (vector or list of (unsigned-byte 8)) to .text section."
   (binary-buffer-write-bytes (elf64-text-buf builder) bytes))
@@ -246,8 +87,7 @@ serialized ELF section is allocated but not writable (SHF_ALLOC without
 SHF_WRITE), allowing the final OS mapping to protect constants from writes."
   (let* ((key (%elf64-bytes-key bytes))
          (cached (gethash key (elf64-const-pool builder))))
-    (if cached
-        cached
+    (or cached
         (let ((offset (length (elf64-rodata-buf builder))))
           (binary-buffer-write-bytes (elf64-rodata-buf builder) bytes)
           (setf (gethash key (elf64-const-pool builder)) offset)
@@ -284,7 +124,7 @@ SHF_WRITE), allowing the final OS mapping to protect constants from writes."
       (when (and (= type +pt-load+)
                  (not (zerop (logand flags +pf-w+)))
                  (not (zerop (logand flags +pf-x+))))
-        (error "ELF W^X violation: writable executable PT_LOAD segment ~S" segment)))))
+        (error 'elf-wx-violation :segment segment)))))
 
 (defun elf64-add-data-bytes (builder bytes)
   "Append initialized writable BYTES to .data and return their section offset."

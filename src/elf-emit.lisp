@@ -50,51 +50,52 @@ The CIE uses augmentation \"zR\", code alignment 1, data alignment -8,
 return-address register RIP (DWARF register 16), and initial CFA rules for a
 normal call frame: CFA = RSP+8, RIP saved at CFA-8.  The FDE covers the current
 .text range and is intentionally conservative for frameless/RBP-less code."
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     ;; CIE
     (let* ((cie-start (length buf))
-           (cie-body (elf-make-buffer)))
-      (binary-buffer-write-u32le cie-body 0) ; CIE_id
-      (elf-buf-u8 cie-body 1)                ; version
-      (binary-buffer-write-bytes cie-body (map 'vector #'char-code "zR"))
-      (elf-buf-u8 cie-body 0)                ; NUL terminator
-      (elf64-write-uleb128 cie-body 1)       ; code alignment factor
-      (elf64-write-sleb128 cie-body -8)      ; data alignment factor
-      (elf64-write-uleb128 cie-body 16)      ; return address register: RIP
-      (elf64-write-uleb128 cie-body 1)       ; augmentation data length
-      (elf-buf-u8 cie-body #x1b)             ; DW_EH_PE_pcrel | sdata4
-      ;; Initial instructions: DW_CFA_def_cfa rsp,8; DW_CFA_offset rip,1
-      (elf-buf-u8 cie-body #x0c)
-      (elf64-write-uleb128 cie-body 7)
-      (elf64-write-uleb128 cie-body 8)
-      (elf-buf-u8 cie-body #x90)
-      (elf64-write-uleb128 cie-body 1)
-      (elf64-pad-to-align cie-body 8)
+           (cie-body
+             (with-byte-buffer (cie-body)
+               (binary-buffer-write-u32le cie-body 0) ; CIE_id
+               (elf-buf-u8 cie-body 1)                ; version
+               (binary-buffer-write-bytes cie-body (map 'vector #'char-code "zR"))
+               (elf-buf-u8 cie-body 0)                ; NUL terminator
+               (elf64-write-uleb128 cie-body 1)       ; code alignment factor
+               (elf64-write-sleb128 cie-body -8)      ; data alignment factor
+               (elf64-write-uleb128 cie-body 16)      ; return address register: RIP
+               (elf64-write-uleb128 cie-body 1)       ; augmentation data length
+               (elf-buf-u8 cie-body #x1b)             ; DW_EH_PE_pcrel | sdata4
+               ;; Initial instructions: DW_CFA_def_cfa rsp,8; DW_CFA_offset rip,1
+               (elf-buf-u8 cie-body #x0c)
+               (elf64-write-uleb128 cie-body 7)
+               (elf64-write-uleb128 cie-body 8)
+               (elf-buf-u8 cie-body #x90)
+               (elf64-write-uleb128 cie-body 1)
+               (elf64-pad-to-align cie-body 8))))
       (binary-buffer-write-u32le buf (length cie-body))
-      (binary-buffer-write-bytes buf (binary-buffer-to-array cie-body))
+      (binary-buffer-write-bytes buf cie-body)
       ;; FDE. CIE_pointer is the distance from this field back to CIE start.
       (let* ((fde-start (length buf))
              (cie-pointer (- (+ fde-start 4) cie-start))
-             (fde-body (elf-make-buffer)))
-        (binary-buffer-write-u32le fde-body cie-pointer)
-        ;; DW_EH_PE_pcrel|sdata4 payload. Relocatable objects leave the encoded
-        ;; location at zero; the linker can resolve final addresses.
-        (binary-buffer-write-u32le fde-body 0)
-        (binary-buffer-write-u32le fde-body text-size)
-        (elf64-write-uleb128 fde-body 0) ; augmentation data length
-        ;; Conservative frameless prologue state: CFA remains RSP+8.
-        (elf-buf-u8 fde-body #x0c)
-        (elf64-write-uleb128 fde-body 7)
-        (elf64-write-uleb128 fde-body 8)
-        (elf64-pad-to-align fde-body 8)
+             (fde-body
+               (with-byte-buffer (fde-body)
+                 (binary-buffer-write-u32le fde-body cie-pointer)
+                 ;; DW_EH_PE_pcrel|sdata4 payload. Relocatable objects leave the encoded
+                 ;; location at zero; the linker can resolve final addresses.
+                 (binary-buffer-write-u32le fde-body 0)
+                 (binary-buffer-write-u32le fde-body text-size)
+                 (elf64-write-uleb128 fde-body 0) ; augmentation data length
+                 ;; Conservative frameless prologue state: CFA remains RSP+8.
+                 (elf-buf-u8 fde-body #x0c)
+                 (elf64-write-uleb128 fde-body 7)
+                 (elf64-write-uleb128 fde-body 8)
+                 (elf64-pad-to-align fde-body 8))))
         (binary-buffer-write-u32le buf (length fde-body))
-        (binary-buffer-write-bytes buf (binary-buffer-to-array fde-body))))
-    (binary-buffer-to-array buf)))
+        (binary-buffer-write-bytes buf fde-body)))))
 
 (defun elf64-build-eh-frame-hdr (eh-frame-offset text-size)
   "Build a compact .eh_frame_hdr with a single binary-search-table FDE row."
   (declare (ignore text-size))
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     (elf-buf-u8 buf 1)     ; version
     (elf-buf-u8 buf #x1b)  ; eh_frame_ptr_enc: DW_EH_PE_pcrel | sdata4
     (elf-buf-u8 buf #x03)  ; fde_count_enc: DW_EH_PE_udata4
@@ -103,51 +104,50 @@ normal call frame: CFA = RSP+8, RIP saved at CFA-8.  The FDE covers the current
     (binary-buffer-write-u32le buf 1)
     ;; initial_location (relative to .eh_frame_hdr base) and FDE pointer.
     (binary-buffer-write-u32le buf 0)
-    (binary-buffer-write-u32le buf 0)
-    (binary-buffer-to-array buf)))
+    (binary-buffer-write-u32le buf 0)))
 
 (defun elf64-build-symtab (builder strtab)
   "Build symbol table bytes. Returns (values symtab-bytes local-count).
    Symbol table format: STN_UNDEF first, then locals, then globals.
    local-count is needed in sh_info."
-  (let ((sym-buf (elf-make-buffer))
-        (symbols (reverse (elf64-symbols builder))))
-    ;; Entry 0: STN_UNDEF (all zeros)
-    (binary-buffer-write-pad sym-buf +elf64-sym-size+)
-    ;; Add each symbol
-    (dolist (sym symbols)
-      (destructuring-bind (name binding type section-idx value size) sym
-        (let ((name-offset (strtab-add strtab name)))
-          ;; st_name(4)
-          (binary-buffer-write-u32le sym-buf name-offset)
-          ;; st_info(1): (binding << 4) | type
-          (elf-buf-u8 sym-buf (logior (ash binding 4) type))
-          ;; st_other(1): 0
-          (elf-buf-u8 sym-buf 0)
-          ;; st_shndx(2): section index (0 = undefined)
-          (binary-buffer-write-u16le sym-buf section-idx)
-          ;; st_value(8)
-          (binary-buffer-write-u64le sym-buf value)
-          ;; st_size(8)
-          (binary-buffer-write-u64le sym-buf size))))
+  (let ((symbols (reverse (elf64-symbols builder))))
     ;; local count = 1 (only STN_UNDEF entry is "local")
-    (values (binary-buffer-to-array sym-buf) 1)))
+    (values
+     (with-byte-buffer (sym-buf)
+       ;; Entry 0: STN_UNDEF (all zeros)
+       (binary-buffer-write-pad sym-buf +elf64-sym-size+)
+       ;; Add each symbol
+       (dolist (sym symbols)
+         (destructuring-bind (name binding type section-idx value size) sym
+           (let ((name-offset (strtab-add strtab name)))
+             ;; st_name(4)
+             (binary-buffer-write-u32le sym-buf name-offset)
+             ;; st_info(1): (binding << 4) | type
+             (elf-buf-u8 sym-buf (logior (ash binding 4) type))
+             ;; st_other(1): 0
+             (elf-buf-u8 sym-buf 0)
+             ;; st_shndx(2): section index (0 = undefined)
+             (binary-buffer-write-u16le sym-buf section-idx)
+             ;; st_value(8)
+             (binary-buffer-write-u64le sym-buf value)
+             ;; st_size(8)
+             (binary-buffer-write-u64le sym-buf size)))))
+     1)))
 
 (defun elf64-build-rela (builder sym-index-map)
   "Build .rela.text section bytes.
    SYM-INDEX-MAP maps sym-name string to its 1-based index in symtab."
-  (let ((rela-buf (elf-make-buffer))
-        (entries (reverse (elf64-rela-entries builder))))
-    (dolist (entry entries)
-      (destructuring-bind (offset type sym-name addend) entry
-        (let ((sym-idx (or (gethash sym-name sym-index-map) 0)))
-          ;; r_offset(8): byte offset in .text
-          (binary-buffer-write-u64le rela-buf offset)
-          ;; r_info(8): (sym-idx << 32) | type
-          (binary-buffer-write-u64le rela-buf (logior (ash sym-idx 32) type))
-          ;; r_addend(8): signed addend
-          (binary-buffer-write-s64le rela-buf addend))))
-    (binary-buffer-to-array rela-buf)))
+  (let ((entries (reverse (elf64-rela-entries builder))))
+    (with-byte-buffer (rela-buf)
+      (dolist (entry entries)
+        (destructuring-bind (offset type sym-name addend) entry
+          (let ((sym-idx (or (gethash sym-name sym-index-map) 0)))
+            ;; r_offset(8): byte offset in .text
+            (binary-buffer-write-u64le rela-buf offset)
+            ;; r_info(8): (sym-idx << 32) | type
+            (binary-buffer-write-u64le rela-buf (logior (ash sym-idx 32) type))
+            ;; r_addend(8): signed addend
+            (binary-buffer-write-s64le rela-buf addend)))))))
 
 (defun elf64-write-shdr (buf name-off type flags offset size link info align entsize)
   "Write a 64-byte section header entry to BUF."
@@ -190,18 +190,17 @@ normal call frame: CFA = RSP+8, RIP saved at CFA-8.  The FDE covers the current
 The returned bytes start with Elf64_Chdr:
   ch_type=ELFCOMPRESS_ZLIB, ch_reserved=0, ch_size=ORIGINAL-SIZE,
   ch_addralign=ADDRALIGN; followed by zlib-compressed bytes."
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     (binary-buffer-write-u32le buf +elfcompress-zlib+)
     (binary-buffer-write-u32le buf 0)
     (binary-buffer-write-u64le buf original-size)
     (binary-buffer-write-u64le buf addralign)
-    (binary-buffer-write-bytes buf compressed-bytes)
-    (binary-buffer-to-array buf)))
+    (binary-buffer-write-bytes buf compressed-bytes)))
 
 (defun %emit-dwarf-line-info (text-size &key (source "<unknown>"))
   "Emit a minimal DWARF3 .debug_line mapping line 1 to address 0."
   (declare (ignore source))
-  (let ((buf (elf-make-buffer)))
+  (with-byte-buffer (buf)
     (binary-buffer-write-u32le buf 29) ; unit_length
     (binary-buffer-write-u16le buf 3)  ; version
     (binary-buffer-write-u32le buf 16) ; header_length
@@ -214,5 +213,4 @@ The returned bytes start with Elf64_Chdr:
     (elf64-write-uleb128 buf text-size)
     (elf-buf-u8 buf 0)
     (elf64-write-uleb128 buf 1)
-    (elf-buf-u8 buf +dwarf-dw-lne-end-sequence+)
-    (binary-buffer-to-array buf)))
+    (elf-buf-u8 buf +dwarf-dw-lne-end-sequence+)))

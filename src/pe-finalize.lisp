@@ -27,7 +27,33 @@
 
 (defun %pe-section-by-name (sections name)
   (or (find name sections :key #'pe-section-name :test #'string=)
-      (error "Missing PE section ~A" name)))
+      (error 'pe-section-not-found :name name)))
+
+(defun %pe-with-import-table (builder idata k)
+  "Build BUILDER's import table for IDATA at its current RVA, store the
+bytes on IDATA, and call K with (IMPORT-DIR IAT-DIR) — the data-directory
+entries the caller needs once the layout that depended on them is stable."
+  (multiple-value-bind (idata-bytes import-dir iat-dir)
+      (pe-build-import-table (pe-builder-imports builder) (pe-section-virtual-address idata))
+    (setf (pe-section-data idata) idata-bytes)
+    (funcall k import-dir iat-dir)))
+
+(defun %pe-with-export-table (builder edata image-name k)
+  "Build BUILDER's export table for EDATA at its current RVA, store the
+bytes on EDATA, and call K with EXPORT-DIR."
+  (multiple-value-bind (edata-bytes export-dir)
+      (pe-build-export-table (pe-builder-exports builder) (pe-section-virtual-address edata)
+                             image-name)
+    (setf (pe-section-data edata) edata-bytes)
+    (funcall k export-dir)))
+
+(defun %pe-with-base-relocations (builder reloc k)
+  "Build BUILDER's .reloc payload for RELOC at its current RVA, store the
+bytes on RELOC, and call K with no arguments."
+  (setf (pe-section-data reloc)
+        (pe-build-base-relocations (pe-builder-base-relocations builder)
+                                   (pe-section-virtual-address reloc)))
+  (funcall k))
 
 (define-binary-writer %pe-write-coff-header
     (buf builder section-count size-of-optional-header)
@@ -129,49 +155,50 @@
          (optional-header-size 240)
          (header-size (+ dos-stub-size 4 20 optional-header-size (* 40 (length sections))))
          (size-of-headers (align-up header-size +pe-file-alignment+)))
-    ;; First pass gives stable RVAs for data-directory-bearing sections.
+    ;; Each stage's data-directory-bearing section needs a stable RVA from the
+    ;; layout pass before it, and changes that section's size, so the next
+    ;; stage needs another layout pass after it; the continuations below are
+    ;; that dependency made explicit instead of nested mutation.
     (%pe-layout-sections sections size-of-headers)
-    (multiple-value-bind (idata-bytes import-dir iat-dir)
-        (pe-build-import-table (pe-builder-imports builder)
-                               (pe-section-virtual-address idata))
-      (setf (pe-section-data idata) idata-bytes)
-      ;; .edata and .reloc RVAs depend on the final .idata size.
-      (%pe-layout-sections sections size-of-headers)
-      (multiple-value-bind (edata-bytes export-dir)
-          (pe-build-export-table (pe-builder-exports builder)
-                                 (pe-section-virtual-address edata)
-                                 (if (pe-builder-dll-p builder) "cl-cc.dll" "cl-cc.exe"))
-        (setf (pe-section-data edata) edata-bytes)
-        (let ((reloc-bytes (pe-build-base-relocations (pe-builder-base-relocations builder)
-                                                      (pe-section-virtual-address reloc))))
-          (setf (pe-section-data reloc) reloc-bytes)
-          ;; Re-layout after generated sections receive their final sizes.
-          (%pe-layout-sections sections size-of-headers)
-          (let ((directories (%pe-empty-directory-table)))
-            (%pe-set-directory directories +pe-directory-import+ (car import-dir) (cdr import-dir))
-            (%pe-set-directory directories +pe-directory-iat+ (car iat-dir) (cdr iat-dir))
-            (when (plusp (length edata-bytes))
-              (%pe-set-directory directories +pe-directory-export+
-                                 (car export-dir) (cdr export-dir)))
-            (when (plusp (length reloc-bytes))
-              (%pe-set-directory directories +pe-directory-base-reloc+
-                                 (pe-section-virtual-address reloc)
-                                 (length reloc-bytes)))
-            (let ((out (elf-make-buffer)))
-              (binary-buffer-write-bytes out (pe-build-dos-stub))
-              (binary-buffer-write-u32le out +pe-signature+)
-              (%pe-write-coff-header out builder (length sections) optional-header-size)
-              (%pe-write-optional-header out builder sections directories size-of-headers)
-              (dolist (section sections)
-                (%pe-write-section-header out section))
-              (%pe-pad-to out size-of-headers)
-              (dolist (section sections)
-                (when (plusp (pe-section-raw-size section))
-                  (%pe-pad-to out (pe-section-raw-pointer section))
-                  (binary-buffer-write-bytes out (pe-section-data section))
-                  (%pe-pad-to out (+ (pe-section-raw-pointer section)
-                                     (pe-section-raw-size section)))))
-              (binary-buffer-to-array out))))))))
+    (%pe-with-import-table builder idata
+      (lambda (import-dir iat-dir)
+        ;; .edata and .reloc RVAs depend on the final .idata size.
+        (%pe-layout-sections sections size-of-headers)
+        (%pe-with-export-table builder edata (if (pe-builder-dll-p builder) "cl-cc.dll" "cl-cc.exe")
+          (lambda (export-dir)
+            (%pe-with-base-relocations builder reloc
+              (lambda ()
+                ;; Re-layout after generated sections receive their final sizes.
+                (%pe-layout-sections sections size-of-headers)
+                (let ((directories (%pe-empty-directory-table))
+                      (edata-bytes (pe-section-data edata))
+                      (reloc-bytes (pe-section-data reloc)))
+                  (%pe-set-directory directories +pe-directory-import+
+                                     (car import-dir) (cdr import-dir))
+                  (%pe-set-directory directories +pe-directory-iat+
+                                     (car iat-dir) (cdr iat-dir))
+                  (when (plusp (length edata-bytes))
+                    (%pe-set-directory directories +pe-directory-export+
+                                       (car export-dir) (cdr export-dir)))
+                  (when (plusp (length reloc-bytes))
+                    (%pe-set-directory directories +pe-directory-base-reloc+
+                                       (pe-section-virtual-address reloc)
+                                       (length reloc-bytes)))
+                  (let ((out (elf-make-buffer)))
+                    (binary-buffer-write-bytes out (pe-build-dos-stub))
+                    (binary-buffer-write-u32le out +pe-signature+)
+                    (%pe-write-coff-header out builder (length sections) optional-header-size)
+                    (%pe-write-optional-header out builder sections directories size-of-headers)
+                    (dolist (section sections)
+                      (%pe-write-section-header out section))
+                    (%pe-pad-to out size-of-headers)
+                    (dolist (section sections)
+                      (when (plusp (pe-section-raw-size section))
+                        (%pe-pad-to out (pe-section-raw-pointer section))
+                        (binary-buffer-write-bytes out (pe-section-data section))
+                        (%pe-pad-to out (+ (pe-section-raw-pointer section)
+                                           (pe-section-raw-size section)))))
+                    (binary-buffer-to-array out)))))))))))
 
 (defun write-pe-file (filename bytes)
   "Write PE image BYTES to FILENAME."

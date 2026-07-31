@@ -43,36 +43,62 @@
 
 (describe "ET_DYN (PIE) ELF executables"
   (it "sets e_type to ET_DYN and includes a PT_DYNAMIC program header"
-    (let* ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :dyn))
-           (e-type (%elf-u16le bytes 16))
-           (phoff (%elf-u64le bytes 32))
-           (phentsize (%elf-u16le bytes 54))
-           (phnum (%elf-u16le bytes 56))
-           (has-pt-dynamic nil))
-      (expect e-type :to-be cl-cc/binary::+elf-type-dyn+)
-      (dotimes (i phnum)
-        (when (= (%elf-u32le bytes (+ phoff (* i phentsize))) cl-cc/binary::+pt-dynamic+)
-          (setf has-pt-dynamic t)))
-      (expect has-pt-dynamic :to-be-truthy)))
+    (let ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :dyn)))
+      (expect (%elf-u16le bytes 16) :to-be cl-cc/binary::+elf-type-dyn+)
+      (expect (%elf-has-phdr-type-p bytes cl-cc/binary::+pt-dynamic+) :to-be-truthy)))
 
   (it "sets e_type to ET_DYN and includes PT_INTERP for a default (non-shared) PIE"
-    (let* ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :dyn))
-           (phoff (%elf-u64le bytes 32))
-           (phentsize (%elf-u16le bytes 54))
-           (phnum (%elf-u16le bytes 56))
-           (has-pt-interp nil))
-      (dotimes (i phnum)
-        (when (= (%elf-u32le bytes (+ phoff (* i phentsize))) cl-cc/binary::+pt-interp+)
-          (setf has-pt-interp t)))
-      (expect has-pt-interp :to-be-truthy)))
+    (let ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :dyn)))
+      (expect (%elf-has-phdr-type-p bytes cl-cc/binary::+pt-interp+) :to-be-truthy)))
 
   (it "omits PT_INTERP for a :shared library (no runtime interpreter needed)"
-    (let* ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :shared))
-           (phoff (%elf-u64le bytes 32))
-           (phentsize (%elf-u16le bytes 54))
-           (phnum (%elf-u16le bytes 56))
-           (has-pt-interp nil))
-      (dotimes (i phnum)
-        (when (= (%elf-u32le bytes (+ phoff (* i phentsize))) cl-cc/binary::+pt-interp+)
-          (setf has-pt-interp t)))
-      (expect has-pt-interp :to-be-falsy))))
+    (let ((bytes (cl-cc/binary::compile-to-elf64-exec #(195) nil :type :shared)))
+      (expect (%elf-has-phdr-type-p bytes cl-cc/binary::+pt-interp+) :to-be-falsy))))
+
+(describe "%elf64-section-header-indices"
+  (it "for a static executable with no .rodata.str: 11 fixed sections, no ET_DYN group"
+    (multiple-value-bind (n-sections dynsym-idx dynstr-idx symtab-idx strtab-idx
+                          debug-line-idx shstrtab-idx)
+        (cl-cc/binary::%elf64-section-header-indices nil nil 0)
+      (expect n-sections :to-be 11)
+      (expect dynsym-idx :to-be-null)
+      (expect dynstr-idx :to-be-null)
+      (expect symtab-idx :to-be 7)
+      (expect strtab-idx :to-be 8)
+      (expect debug-line-idx :to-be 9)
+      (expect shstrtab-idx :to-be 10)))
+
+  (it "for a static executable with .rodata.str present: every index after it shifts by 1"
+    (multiple-value-bind (n-sections dynsym-idx dynstr-idx symtab-idx strtab-idx
+                          debug-line-idx shstrtab-idx)
+        (cl-cc/binary::%elf64-section-header-indices nil nil 1)
+      (declare (ignore dynsym-idx dynstr-idx))
+      (expect n-sections :to-be 12)
+      (expect symtab-idx :to-be 8)
+      (expect strtab-idx :to-be 9)
+      (expect debug-line-idx :to-be 10)
+      (expect shstrtab-idx :to-be 11)))
+
+  (it "for a PIE (ET_DYN with PT_INTERP): 17 sections, dynsym/dynstr placed before symtab"
+    (multiple-value-bind (n-sections dynsym-idx dynstr-idx symtab-idx strtab-idx
+                          debug-line-idx shstrtab-idx)
+        (cl-cc/binary::%elf64-section-header-indices t t 0)
+      (expect n-sections :to-be 17)
+      (expect dynsym-idx :to-be 8)
+      (expect dynstr-idx :to-be 9)
+      (expect symtab-idx :to-be 13)
+      (expect strtab-idx :to-be 14)
+      (expect debug-line-idx :to-be 15)
+      (expect shstrtab-idx :to-be 16)))
+
+  (it "for a shared library (ET_DYN, no PT_INTERP) with .rodata.str present"
+    (multiple-value-bind (n-sections dynsym-idx dynstr-idx symtab-idx strtab-idx
+                          debug-line-idx shstrtab-idx)
+        (cl-cc/binary::%elf64-section-header-indices t nil 1)
+      (expect n-sections :to-be 17)
+      (expect dynsym-idx :to-be 8)
+      (expect dynstr-idx :to-be 9)
+      (expect symtab-idx :to-be 14)
+      (expect strtab-idx :to-be 15)
+      (expect debug-line-idx :to-be 16)
+      (expect shstrtab-idx :to-be 17))))

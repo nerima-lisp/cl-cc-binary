@@ -1,8 +1,9 @@
 ;;;; packages/binary/src/wasm.lisp - WASM Binary Format Utilities
 ;;;
-;;; LEB128 encoding, byte buffer helpers, and IEEE754 double-float bit
-;;; manipulation used by the WASM emit pipeline and tests.
-;;; The emit pipeline uses WAT text format (see wasm-trampoline-emit.lisp).
+;;; LEB128 encoding and IEEE754 double-float bit manipulation, the primitives
+;;; a WASM binary encoder needs. Callers write the resulting bytes with the
+;;; generic BINARY-BUFFER-* API (binary-writer.lisp) rather than a WASM-
+;;; specific wrapper.
 ;;;
 ;;; Reference: https://webassembly.github.io/spec/core/binary/index.html
 
@@ -38,21 +39,8 @@
     (nreverse bytes)))
 
 ;;; ------------------------------------------------------------
-;;; Section 2: Byte Buffer Helpers
+;;; Section 2: IEEE754 Double-Float Encoding
 ;;; ------------------------------------------------------------
-
-(defun make-wasm-buffer ()
-  "Create a fresh WASM byte buffer (adjustable byte array with fill pointer)."
-  (make-binary-buffer 0))
-
-(defun wasm-buf-write-uleb128 (buf value)
-  "Write VALUE as unsigned LEB128 into BUF."
-  (binary-buffer-write-bytes buf (encode-uleb128 value)))
-
-(defun wasm-buf-write-sleb128 (buf value)
-  "Write VALUE as signed LEB128 into BUF."
-  (binary-buffer-write-bytes buf (encode-sleb128 value)))
-
 
 (defun portable-double-float-bits (value)
   "Return VALUE as an IEEE754 double bit pattern using portable CL operations."
@@ -88,14 +76,4 @@
            (logior (ash sign-bit 63)
                    (ash exp-field 52)
                    (logand fraction #x000fffffffffffff))))))))
-
-(defun wasm-buf-write-f64 (buf value)
-  "Write a 64-bit IEEE754 float VALUE into BUF (little-endian)."
-  (let* ((bits (portable-double-float-bits value))
-         (lo (logand bits #xffffffff))
-         (hi (ash bits -32)))
-    (loop for shift from 0 to 24 by 8
-          do (binary-buffer-write-u8 buf (logand (ash lo (- shift)) #xff)))
-    (loop for shift from 0 to 24 by 8
-          do (binary-buffer-write-u8 buf (logand (ash hi (- shift)) #xff)))))
 

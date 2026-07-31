@@ -11,7 +11,10 @@ nix run .#test       # run the test suite
 nix flake check      # tests + formatting + docs — the gate CI uses
 nix fmt              # format Nix sources (treefmt/nixfmt)
 nix build .#docs     # render this site to ./result
+nix build .#coverage # SB-COVER HTML report to ./result/cover-index.html
 ```
+
+`nix build .#coverage` is not part of `nix flake check`: `sb-cover` instrumentation forces a full recompile of `cl-cc-binary` and every dependency it shares a source registry with, which is too slow for the fast path every check run takes, and a coverage percentage is a number to read rather than a pass/fail gate. Run it on demand and open `result/cover-index.html`; the subheading for `.../source/src/` in that report is this package's own code, the others are `cl-log-kit`/`cl-weave`/etc. picking up incidental coverage from whatever of their surface the test suite happens to exercise.
 
 `nix flake check` is the only command whose result matters for a pull request.
 It runs three derivations in parallel:
@@ -36,7 +39,7 @@ machines are Darwin arm64 so the second is exercised by every local
 ## Running the tests without Nix
 
 ```sh
-export CL_SOURCE_REGISTRY="/path/to/cl-weave//:/path/to/cl-log-kit//"
+export CL_SOURCE_REGISTRY="/path/to/cl-weave//:/path/to/cl-log-kit//:/path/to/cl-date-kit//:/path/to/cl-concurrent-kit//:/path/to/cl-host-kit//:/path/to/cl-process-kit//:/path/to/cl-boundary-kit//"
 sbcl --script run-tests.lisp
 ```
 

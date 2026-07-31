@@ -47,7 +47,7 @@
              (push-opcode (aref plt 22))
              (index-lo    (aref plt 23)))
         (expect (= push-opcode #x68))
-        (expect (= index-lo    0))))
+        (expect (zerop index-lo))))
 
     (it "encodes push $1 for the second symbol"
       (let* ((plt (cl-cc/binary::add-plt-stubs '("foo" "bar")))
@@ -71,7 +71,7 @@
 
   (describe "add-dynamic-relocations"
     (it "returns an empty vector for no symbols"
-      (expect (= (length (cl-cc/binary::add-dynamic-relocations '() 0)) 0)))
+      (expect (zerop (length (cl-cc/binary::add-dynamic-relocations '() 0)))))
 
     (it "emits one 24-byte Elf64_Rela for one symbol"
       (expect (= (length (cl-cc/binary::add-dynamic-relocations '("foo") 0)) 24)))

@@ -12,7 +12,7 @@
       (let ((buf (cl-cc/binary::make-binary-buffer 256)))
         (expect (typep buf '(array (unsigned-byte 8) (*))) :to-be-truthy)
         (expect (array-has-fill-pointer-p buf) :to-be-truthy)
-        (expect (= (length buf) 0))))
+        (expect (zerop (length buf)))))
 
     (it "appends a byte on write-u8"
       (let ((buf (cl-cc/binary::make-binary-buffer 16)))
@@ -60,7 +60,7 @@
         (cl-cc/binary::binary-buffer-write-pad buf pad-count)
         (expect (= (length buf) pad-count))
         (dotimes (i pad-count)
-          (expect (= (aref buf i) 0)))))
+          (expect (zerop (aref buf i))))))
 
     (it "copies all elements when writing bytes from a vector"
       (let ((buf (cl-cc/binary::make-binary-buffer 16))
@@ -126,6 +126,14 @@
         (value alignment expected)
       (expect (= (cl-cc/binary::align-up value alignment) expected)))
 
+    (it-property "align-up returns the smallest multiple of alignment that is >= value"
+        ((value (gen-integer :min 0 :max 1000000))
+         (alignment (gen-integer :min 1 :max 4096)))
+      (let ((result (cl-cc/binary::align-up value alignment)))
+        (expect (zerop (mod result alignment)))
+        (expect (>= result value))
+        (expect (< (- result alignment) value))))
+
     (it "converts each character to its ASCII code"
       (let ((bytes (cl-cc/binary::string-to-ascii-bytes "ABC")))
         (expect (= (length bytes) 3))
@@ -134,7 +142,7 @@
         (expect (= (aref bytes 2) (char-code #\C)))))
 
     (it "returns an empty vector for the empty string"
-      (expect (= (length (cl-cc/binary::string-to-ascii-bytes "")) 0))))
+      (expect (zerop (length (cl-cc/binary::string-to-ascii-bytes ""))))))
 
   (describe "serialization primitives"
     (it "writes a uint32 in little-endian order"
@@ -178,4 +186,4 @@
           (expect (= (aref data 0) (char-code #\H)))
           (expect (= (aref data 1) (char-code #\I)))
           (dotimes (i 14)
-            (expect (= (aref data (+ i 2)) 0))))))))
+            (expect (zerop (aref data (+ i 2))))))))))

@@ -47,10 +47,30 @@
   (loop repeat n
         do (binary-buffer-write-u8 buffer 0)))
 
+(defun binary-buffer-pad-and-write (buffer target-offset bytes)
+  "Pad BUFFER with zero bytes up to TARGET-OFFSET, then write BYTES.
+
+The layout idiom every finalized output buffer repeats once per section: pad
+from the current length to that section's known file offset, then place its
+bytes."
+  (binary-buffer-write-pad buffer (- target-offset (length buffer)))
+  (binary-buffer-write-bytes buffer bytes))
+
 (defun binary-buffer-to-array (buffer)
   (make-array (length buffer)
               :element-type '(unsigned-byte 8)
               :initial-contents buffer))
+
+(defmacro with-byte-buffer ((buffer-var) &body body)
+  "Bind BUFFER-VAR to a fresh binary buffer, evaluate BODY for its writes to
+that buffer, and return the accumulated bytes as a simple-array.
+
+Every section/payload builder in this system starts with a fresh buffer and
+ends by converting it to an array; this macro is that shape, so a builder
+reads as only the writes that make it distinct."
+  `(let ((,buffer-var (make-binary-buffer 0)))
+     ,@body
+     (binary-buffer-to-array ,buffer-var)))
 
 (defclass byte-buffer ()
   ((data :initarg :data
@@ -79,6 +99,12 @@
   "Get the contents of BUFFER as a simple-array of (unsigned-byte 8)."
   (declare (type byte-buffer buffer))
   (binary-buffer-to-array (byte-buffer-data buffer)))
+
+(defun buffer-pad-to (buffer target-offset)
+  "Pad BUFFER with zero bytes up to TARGET-OFFSET."
+  (declare (type byte-buffer buffer))
+  (loop repeat (- target-offset (length (byte-buffer-data buffer)))
+        do (buffer-write-byte buffer 0)))
 
 ;;; Utilities
 

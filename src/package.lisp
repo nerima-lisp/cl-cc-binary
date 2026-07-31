@@ -2,9 +2,26 @@
 ;;;
 ;;; Package for Mach-O binary format support in cl-cc.
 
-(defpackage :cl-cc/binary
+(defpackage #:cl-cc/binary
   (:use #:cl)
   (:export
+   ;; Conditions
+   #:cl-cc-binary-error
+   #:value-out-of-range
+   #:value-out-of-range-operation
+   #:value-out-of-range-value
+   #:value-out-of-range-low
+   #:value-out-of-range-high
+   #:elf-wx-violation
+   #:elf-wx-violation-segment
+   #:patchable-entry-overflow
+   #:patchable-entry-overflow-size
+   #:patchable-entry-overflow-reserved
+   #:pe-section-not-found
+   #:pe-section-not-found-name
+   #:macho-unknown-architecture
+   #:macho-unknown-architecture-arch
+
    ;; Mach-O constants
    #:+mh-magic-64+
    #:+fat-magic+
@@ -120,6 +137,9 @@
    #:serialize-uint32-le
    #:serialize-uint64-le
    #:with-output-to-vector
+   #:with-byte-buffer
+   #:binary-buffer-pad-and-write
+   #:buffer-pad-to
 
    ;; ELF64 backend
      #:compile-to-elf64
@@ -146,6 +166,7 @@
     #:make-elf64-executable
     #:elf64-add-load-segment
     #:elf64-add-gnu-stack-segment
+    #:elf64-add-gnu-relro-segment
     #:write-elf64-file
 
     ;; PE/COFF backend

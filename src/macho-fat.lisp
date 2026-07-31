@@ -19,12 +19,6 @@
   (bytes (make-array 0 :element-type '(unsigned-byte 8))
          :type (simple-array (unsigned-byte 8) (*))))
 
-(defun %macho-write-u32-be (value stream)
-  "Write VALUE as a big-endian uint32 to STREAM."
-  (dotimes (shift-index 4)
-    (let ((shift (* 8 (- 3 shift-index))))
-      (write-byte (ldb (byte 8 shift) value) stream))))
-
 (defun %macho-fat-align-up (value align-power)
   "Align VALUE to 2^ALIGN-POWER for Mach-O fat slice placement."
   (let ((alignment (ash 1 align-power)))

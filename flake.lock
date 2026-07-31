@@ -1,35 +1,120 @@
 {
   "nodes": {
-    "cl-log-kit": {
+    "cl-boundary-kit": {
       "flake": false,
       "locked": {
-        "lastModified": 1784998499,
-        "narHash": "sha256-MY41YW9Lw2ZaB7cctcvl4vIXXGrsOF/tXPbl4mn3ix8=",
+        "lastModified": 1785007911,
+        "narHash": "sha256-wfG8DV7pSYyWDmEGgIxP4i9sM1MS6FqPWHj52dUpFQ0=",
         "owner": "nerima-lisp",
-        "repo": "cl-log-kit",
-        "rev": "53d1d81309e446afc805e0fe081628089223248b",
+        "repo": "cl-boundary-kit",
+        "rev": "d4c47739556d405e7d8ead2dc43a6580f5fe281d",
         "type": "github"
       },
       "original": {
         "owner": "nerima-lisp",
         "ref": "v1.0.0",
+        "repo": "cl-boundary-kit",
+        "type": "github"
+      }
+    },
+    "cl-concurrent-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785417148,
+        "narHash": "sha256-apRS0wJhN0uUhC1n0wyHqQ5k1FkjfRytRt3XXgLveeg=",
+        "owner": "nerima-lisp",
+        "repo": "cl-concurrent-kit",
+        "rev": "4018d20b99385b764f183466ade1cbfaa8d905c6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v0.1.0",
+        "repo": "cl-concurrent-kit",
+        "type": "github"
+      }
+    },
+    "cl-date-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785429368,
+        "narHash": "sha256-gHRCkMGrq/ZBeNS6Stx8nvx5brNi5P1sRzzN4nGwwTo=",
+        "owner": "nerima-lisp",
+        "repo": "cl-date-kit",
+        "rev": "b0d9cb2f978a0c1ccfd1450ec6c10a33a9b2c858",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v0.2.0",
+        "repo": "cl-date-kit",
+        "type": "github"
+      }
+    },
+    "cl-host-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785433376,
+        "narHash": "sha256-sivxc+tzylWHzkRhIn6yAj8CFCTsoG+gFx7B2q6aBT4=",
+        "owner": "nerima-lisp",
+        "repo": "cl-host-kit",
+        "rev": "e1b5bd199c93bc083e8dee58d0a70c233d1d9e86",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v0.2.1",
+        "repo": "cl-host-kit",
+        "type": "github"
+      }
+    },
+    "cl-log-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785432194,
+        "narHash": "sha256-O4exkQigLyQ56/1WQgyjlkyfIQlzuhMjiNcJ7tZ7EG0=",
+        "owner": "nerima-lisp",
         "repo": "cl-log-kit",
+        "rev": "70cf68f3efba3add1c878c4b3da9fda82760ab65",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v2.0.0",
+        "repo": "cl-log-kit",
+        "type": "github"
+      }
+    },
+    "cl-process-kit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785430009,
+        "narHash": "sha256-HL+Ty5yqmO/v6RoMdPrIZkdtEV7vLVKElRLFnI2aMjo=",
+        "owner": "nerima-lisp",
+        "repo": "cl-process-kit",
+        "rev": "140e8b7441236cd42ef135b478728bb26f12c632",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "ref": "v2.0.0",
+        "repo": "cl-process-kit",
         "type": "github"
       }
     },
     "cl-weave": {
       "flake": false,
       "locked": {
-        "lastModified": 1784975289,
-        "narHash": "sha256-Je74eEojj79RuBQpVF8vSygjlSEhjnmMq8abgyB4sGc=",
+        "lastModified": 1785376209,
+        "narHash": "sha256-Grh5JozH3XA3yAbkm6HoWgSeVYRecfEj1GwmglehdNg=",
         "owner": "nerima-lisp",
         "repo": "cl-weave",
-        "rev": "41020b897003fc1e3097cd62643f83ee8334c3be",
+        "rev": "16a35617a3c3d173ce7b3d1bd63b77b6d85bbd70",
         "type": "github"
       },
       "original": {
         "owner": "nerima-lisp",
-        "ref": "v1.0.0",
+        "ref": "v1.1.0",
         "repo": "cl-weave",
         "type": "github"
       }
@@ -52,7 +137,12 @@
     },
     "root": {
       "inputs": {
+        "cl-boundary-kit": "cl-boundary-kit",
+        "cl-concurrent-kit": "cl-concurrent-kit",
+        "cl-date-kit": "cl-date-kit",
+        "cl-host-kit": "cl-host-kit",
         "cl-log-kit": "cl-log-kit",
+        "cl-process-kit": "cl-process-kit",
         "cl-weave": "cl-weave",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
