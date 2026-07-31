@@ -31,10 +31,15 @@ build caching; a second job would duplicate that and lose the cache sharing.
 
 ## Declared systems
 
-The flake declares `x86_64-linux` and `aarch64-darwin`, and nothing else. Those
-are the two that are actually verified: CI builds the first, and development
-machines are Darwin arm64 so the second is exercised by every local
-`nix flake check`. `ci.yml` does not pass `--all-systems`.
+The flake declares `x86_64-linux`, and nothing else. That is the one platform
+actually verified: CI builds it, and nothing else is gated anywhere.
+`aarch64-darwin` was dropped on 2026-08-01 because its only verification was a
+local `nix flake check` a developer could forget to run. `ci.yml` does not pass
+`--all-systems`; with one declared system it would check nothing extra.
+
+Every per-system output comes from that one list, `devShells` included, so
+`nix develop` and `nix build` do not work on macOS. Development happens on
+Linux.
 
 ## Running the tests without Nix
 
@@ -94,8 +99,15 @@ them. This system uses none; scope an optimization to a single function with
 
 ## Releasing
 
-Bump `:version` in `cl-cc-binary.asd`, move the `## [Unreleased]` entries into a
-new `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`, then push the matching
-`vX.Y.Z` tag. `release.yml` refuses a tag that disagrees with the `.asd`
-version, and builds the release body from the changelog section with that exact
-heading, so a deviation in either place fails the release.
+Bump `:version` in `cl-cc-binary.asd`, then push the matching `vX.Y.Z` tag.
+`release.yml` refuses a tag that disagrees with the `.asd` version, runs
+`nix flake check`, and creates the
+[GitHub release](https://github.com/nerima-lisp/cl-cc-binary/releases) as an
+empty draft. Write the release notes into that draft and publish it:
+
+```sh
+gh release edit vX.Y.Z --notes-file release-notes.md --draft=false
+```
+
+The release description is the only canonical changelog in this org; there is
+no `CHANGELOG.md` in the tree.

@@ -35,7 +35,8 @@ runtime, and depends on no other cl-cc package. SBCL only.
 The version is 0.2.0 and the exported surface is not yet under a compatibility
 promise. Treat the symbol list in the [API Reference](api-reference.md) as the
 current state rather than a contract; see the
-[changelog](changelog.md) for what has moved.
+[release notes](https://github.com/nerima-lisp/cl-cc-binary/releases) for what
+has moved.
 
 ## Project
 

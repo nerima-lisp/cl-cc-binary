@@ -60,7 +60,7 @@ The macro derives the serializer name from the struct name, so
 `entry-point-command` yields `serialize-entry-point-command`. That renaming is
 what broke `build-mach-o` when the hand-written `serialize-entry-point` was
 replaced and the call site was not updated — see the
-[changelog](changelog.md).
+[release notes](https://github.com/nerima-lisp/cl-cc-binary/releases).
 
 ## Why the files split the way they do
 

@@ -3,10 +3,8 @@
 # Build:   mkdocs build -f docs/mkdocs.yml --strict
 # Serve:   mkdocs serve  -f docs/mkdocs.yml
 #
-# Run both from the repository root, not from docs/: pymdownx.snippets resolves
-# base_path against the working directory, and docs/src/changelog.md pulls in
-# the root CHANGELOG.md. The Nix flake (`nix build .#docs`) does the same
-# offline, and `nix flake check` fails on a broken link or an unlisted page.
+# The Nix flake (`nix build .#docs`) does the same offline, and
+# `nix flake check` fails on a broken link or an unlisted page.
 
 site_name: cl-cc-binary
 site_description: >-
@@ -59,13 +57,6 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.snippets:
-      # Resolved against the directory mkdocs is invoked from (the repository
-      # root — see the Build/Serve commands above), so docs/src/changelog.md
-      # can include the root CHANGELOG.md instead of duplicating it.
-      base_path:
-        - "."
-      check_paths: true
 
 # Every page under docs/src/ must appear here: --strict fails the build on an
 # unlisted page. That is deliberate, so the nav cannot silently fall behind.
@@ -82,7 +73,6 @@ nav:
       - Architecture: architecture.md
   - Project:
       - Development: development.md
-      - Changelog: changelog.md
 
 not_in_nav: |
   notes/

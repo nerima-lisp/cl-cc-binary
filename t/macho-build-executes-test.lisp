@@ -15,10 +15,12 @@
 ;;;; codesign step for real rather than only through the captured-logger unit
 ;;;; test in t/macho-build-assemble-logging-test.lisp.
 ;;;;
-;;;; Only meaningful on an aarch64-darwin host — the flake's declared systems
-;;;; are x86_64-linux and aarch64-darwin, and an ARM64 Mach-O cannot execute
-;;;; on either the other architecture or the other OS. IT-RUN-IF reports the
-;;;; skip explicitly rather than silently omitting the test elsewhere.
+;;;; Only meaningful on an aarch64-darwin host — an ARM64 Mach-O cannot execute
+;;;; on another architecture or another OS. Since 2026-08-01 the flake declares
+;;;; x86_64-linux alone, so this test is skipped on every declared system and
+;;;; only runs for a developer who has an Apple Silicon machine and invokes the
+;;;; suite outside Nix. IT-RUN-IF reports the skip explicitly rather than
+;;;; silently omitting the test elsewhere.
 ;;;;
 ;;;; Also skipped inside a Nix build sandbox (NIX_BUILD_TOP set): this test
 ;;;; observed exit code 137 (SIGKILL) under

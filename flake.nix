@@ -86,14 +86,20 @@
       ...
     }:
     let
-      # Only the two platforms that are actually verified: CI builds
-      # x86_64-linux, and development machines are Darwin arm64 so every local
-      # `nix flake check` exercises aarch64-darwin. aarch64-linux and
-      # x86_64-darwin are declared by nobody who tests them, so they are not
-      # declared here either (ADR-0078). ci.yml does not pass --all-systems.
+      # CI builds and tests only x86_64-linux, so that is the sole declared
+      # system: the flake never advertises a platform it does not verify.
+      # aarch64-darwin was dropped on 2026-08-01. Its only verification was a
+      # local `nix flake check` on a development machine, and a run nobody can
+      # tell was skipped is not a gate. aarch64-linux and x86_64-darwin were
+      # already undeclared for the same reason (ADR-0078). ci.yml does not pass
+      # --all-systems: with one entry here it would check nothing extra.
+      #
+      # Consequence, accepted deliberately: every per-system output -- packages,
+      # checks, apps AND devShells -- is generated from this one list, so
+      # `nix develop` and `nix build` no longer work on macOS. Development
+      # happens on Linux. See PACKAGE_STANDARD.md, section "systems".
       systems = [
         "x86_64-linux"
-        "aarch64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
@@ -174,10 +180,10 @@
           # network access is required inside the sandbox. --strict promotes a
           # broken link or a page missing from the nav to a build failure.
           #
-          # The fileset roots at ./. rather than ./docs because
-          # docs/src/changelog.md is a pymdownx.snippets include of the root
-          # CHANGELOG.md, and mkdocs is invoked from the repository root so
-          # that snippets' base_path of "." resolves to it.
+          # The fileset roots at ./. rather than ./docs because mkdocs is
+          # invoked from the repository root with `--config-file
+          # docs/mkdocs.yml`, matching the Build/Serve commands documented at
+          # the top of that file.
           docs = pkgs.stdenvNoCC.mkDerivation {
             pname = "cl-cc-binary-docs";
             inherit version;
@@ -186,7 +192,6 @@
               fileset = pkgs.lib.fileset.unions [
                 ./docs/mkdocs.yml
                 ./docs/src
-                ./CHANGELOG.md
               ];
             };
             nativeBuildInputs = [ pkgs.python3Packages.mkdocs-material ];
