@@ -15,7 +15,7 @@ as `*code*` and once as the assembled image.
 Internally two buffer types accumulate output. `binary-buffer` is a bare
 adjustable byte vector with a fill pointer, and `byte-buffer` is a CLOS wrapper
 around one. Neither is exported; they appear here only because the serializer
-functions in the [API Reference](api-reference.md) take a `byte-buffer` as their
+functions in the [API Reference](../reference/api.md) take a `byte-buffer` as their
 second argument.
 
 The `with-output-to-vector` macro is the exported way to collect bytes without
@@ -104,3 +104,10 @@ cannot fold code that merely hashes alike.
 `elf64-verify-wx` signals an error if any `PT_LOAD` segment is both writable and
 executable. It is a check, not a fix; call it before writing if W^X matters to
 you.
+
+## System name and package name
+
+The ASDF system is `cl-cc-binary`; the Lisp package it defines is
+`cl-cc/binary`. The two names differ because the package predates the split
+of cl-cc into separate repositories and callers already qualify symbols as
+`cl-cc/binary:`.

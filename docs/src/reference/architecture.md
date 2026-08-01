@@ -113,4 +113,4 @@ timeout or nonzero exit in `write-mach-o-file` — are a different case: there
 is nothing left for a caller to act on, since the binary was already written
 successfully and codesigning is best-effort. Those are reported to
 `*binary-logger*`, which is `nil` by default, instead of signalled. See
-[Core Concepts](core-concepts.md#diagnostics).
+[Core Concepts](../guide/core-concepts.md#diagnostics).

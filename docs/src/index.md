@@ -23,17 +23,18 @@ runtime, and depends on no other cl-cc package. SBCL only.
 
 ## Where to go next
 
-- [Installation](installation.md) — adding the flake input and the `:depends-on` entry.
-- [Quick Start](quick-start.md) — emitting one object file per format, end to end.
-- [Core Concepts](core-concepts.md) — buffers, builders and the two shapes of API.
-- [API Reference](api-reference.md) — every exported symbol.
-- [Architecture](architecture.md) — how `src/` is divided and why.
-- [Development](development.md) — building, testing and formatting.
+- [Getting Started](getting-started.md) — adding the flake input and the
+  `:depends-on` entry, then emitting an ELF executable end to end.
+- [Core Concepts](guide/core-concepts.md) — buffers, builders and the two shapes of API.
+- [Examples](guide/examples.md) — the same bytes as Mach-O, PE and a fat binary.
+- [API Reference](reference/api.md) — every exported symbol.
+- [Architecture](reference/architecture.md) — how `src/` is divided and why.
+- [Development](project/development.md) — building, testing and formatting.
 
 ## Stability
 
 The version is 0.2.0 and the exported surface is not yet under a compatibility
-promise. Treat the symbol list in the [API Reference](api-reference.md) as the
+promise. Treat the symbol list in the [API Reference](reference/api.md) as the
 current state rather than a contract; see the
 [release notes](https://github.com/nerima-lisp/cl-cc-binary/releases) for what
 has moved.

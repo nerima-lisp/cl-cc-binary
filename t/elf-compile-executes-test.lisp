@@ -9,7 +9,7 @@
 ;;;;
 ;;;; Only meaningful on a native Linux host: this flake declares
 ;;;; x86_64-linux as one of its two verified systems (see
-;;;; docs/src/development.md), so CI's x86_64-linux leg exercises this
+;;;; docs/src/project/development.md), so CI's x86_64-linux leg exercises this
 ;;;; directly with no extra dependency. IT-RUN-IF reports the skip
 ;;;; explicitly on any other host rather than silently omitting the test.
 ;;;;

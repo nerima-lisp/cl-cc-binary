@@ -60,19 +60,21 @@ markdown_extensions:
 
 # Every page under docs/src/ must appear here: --strict fails the build on an
 # unlisted page. That is deliberate, so the nav cannot silently fall behind.
+# docs/src/ is split into guide/ reference/ project/, with only index.md,
+# getting-started.md and assets/ at the root, per the 2026-08-01 revision of
+# DOCS_STANDARD.md. The Internals section is gone with it: architecture.md is
+# something a reader looks an answer up in, so it lives under Reference.
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: installation.md
-      - Quick Start: quick-start.md
+  - Getting Started: getting-started.md
   - Guide:
-      - Core Concepts: core-concepts.md
+      - Core Concepts: guide/core-concepts.md
+      - Examples: guide/examples.md
   - Reference:
-      - API Reference: api-reference.md
-  - Internals:
-      - Architecture: architecture.md
+      - API: reference/api.md
+      - Architecture: reference/architecture.md
   - Project:
-      - Development: development.md
+      - Development: project/development.md
 
 not_in_nav: |
   notes/
