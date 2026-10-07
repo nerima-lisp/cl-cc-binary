@@ -52,6 +52,12 @@
       flake = false;
     };
 
+    # Runtime: cl-process-kit's UTF-8 and stream codec dependency.
+    cl-codec-kit = {
+      url = "github:nerima-lisp/cl-codec-kit/v0.6.0";
+      flake = false;
+    };
+
     # Runtime: cl-process-kit's own dependency (clock/sleeper boundaries),
     # pulled transitively for the same reason as cl-log-kit's above.
     cl-boundary-kit = {
@@ -80,6 +86,7 @@
       cl-concurrent-kit,
       cl-host-kit,
       cl-process-kit,
+      cl-codec-kit,
       cl-boundary-kit,
       cl-weave,
       treefmt-nix,
@@ -104,7 +111,7 @@
       # transitive dependencies, and this tree.
       runtimeRegistry =
         "${cl-log-kit}//:${cl-date-kit}//:${cl-concurrent-kit}//:${cl-host-kit}//"
-        + ":${cl-process-kit}//:${cl-boundary-kit}//:${self}//";
+        + ":${cl-process-kit}//:${cl-codec-kit}//:${cl-boundary-kit}//:${self}//";
       # What the test system additionally needs.
       testRegistry = "${cl-weave}//:${runtimeRegistry}";
 
