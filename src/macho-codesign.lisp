@@ -47,26 +47,48 @@ function's return value."
     (process-kit:process-timeout-error () (funcall on-timeout))
     (process-kit:process-error (condition) (funcall on-error condition))))
 
-(defun write-mach-o-file (filename mach-o-bytes &key (codesign t))
-  "Write MACH-O-BYTES to FILENAME as a binary file."
-  (declare (type (or pathname string) filename)
-           (type (simple-array (unsigned-byte 8) (*)) mach-o-bytes))
+(defun %macho-codesign-program ()
+  "Return the host codesign program pathname, or NIL when unavailable."
+  (probe-file "/usr/bin/codesign"))
+
+(defun %macho-write-bytes (filename mach-o-bytes)
   (with-open-file (out filename
                         :direction :output
                         :element-type '(unsigned-byte 8)
                         :if-exists :supersede
                         :if-does-not-exist :create)
     (write-sequence mach-o-bytes out))
-  (when codesign
-    (let ((codesign-program (probe-file "/usr/bin/codesign")))
-      (unless codesign-program
-        (error "Mach-O code signing requested but /usr/bin/codesign is unavailable"))
-      (%macho-codesign-cps
-       codesign-program filename
-       (lambda () (%macho-log-codesign-outcome :ok filename))
-       (lambda ()
-         (error "Mach-O code signing timed out for ~A" (namestring filename)))
-       (lambda (condition)
-         (error "Mach-O code signing failed for ~A: ~A"
-                (namestring filename) condition)))))
   filename)
+
+(defun write-mach-o-file (filename mach-o-bytes &key (codesign t))
+  "Write MACH-O-BYTES to FILENAME, replacing it only after signing succeeds."
+  (declare (type (or pathname string) filename)
+           (type (simple-array (unsigned-byte 8) (*)) mach-o-bytes))
+  (let ((target (pathname filename)))
+    (if codesign
+        (let ((staged (uiop:tmpize-pathname target)))
+          (unwind-protect
+               (progn
+                 (%macho-write-bytes staged mach-o-bytes)
+                 (let ((codesign-program (%macho-codesign-program)))
+                   (unless codesign-program
+                     (error 'macho-codesign-error
+                            :filename target
+                            :reason "codesign is unavailable"))
+                   (%macho-codesign-cps
+                    codesign-program staged
+                    (lambda ()
+                      (uiop:rename-file-overwriting-target staged target)
+                      (%macho-log-codesign-outcome :ok target))
+                    (lambda ()
+                      (error 'macho-codesign-error
+                             :filename target
+                             :reason "codesign timed out"))
+                    (lambda (condition)
+                      (error 'macho-codesign-error
+                             :filename target
+                             :reason condition))))
+                 target)
+            (when (probe-file staged)
+              (ignore-errors (delete-file staged)))))
+        (%macho-write-bytes target mach-o-bytes))))

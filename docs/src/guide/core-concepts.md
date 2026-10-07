@@ -74,10 +74,10 @@ first, and the one-shot functions grew keyword arguments (`:arch`, `:bss-size`,
 
 ## Diagnostics
 
-Some failure paths cannot signal. `write-mach-o-file` shells out to `codesign`,
-and a timeout or a non-zero exit there is not fatal to producing the file — the
-file is already written. Rather than either ignoring the failure or forcing a
-condition on every caller, the library reports it to an optional logger:
+`write-mach-o-file` shells out to `codesign` before replacing the target. A
+timeout or non-zero exit signals `macho-codesign-error`, leaving an existing
+target unchanged. Successful signing can still be observed through the
+optional logger:
 
 ```lisp
 (setf cl-cc/binary:*binary-logger* (log-kit:make-logger))
