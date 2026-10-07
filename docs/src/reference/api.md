@@ -84,8 +84,8 @@ slice payloads are copied verbatim at aligned offsets.
 
 All four write bytes and do not set the execute bit. `write-mach-o-file`
 additionally invokes `codesign` unless `:codesign nil` is passed; a timeout or a
-failure there does not prevent the file from being written, and is reported
-through [`*binary-logger*`](#binary-logger) rather than signalled.
+failure there signals `macho-codesign-error` and leaves an existing target
+unchanged. The target is replaced only after signing succeeds.
 
 `write-mach-o-fat-file` takes slices rather than bytes, building the image
 itself.

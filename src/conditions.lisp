@@ -10,6 +10,15 @@
 (define-condition cl-cc-binary-error (error) ()
   (:documentation "Base condition for every error cl-cc-binary signals."))
 
+(define-condition macho-codesign-error (cl-cc-binary-error)
+  ((filename :initarg :filename :reader macho-codesign-error-filename)
+   (reason :initarg :reason :reader macho-codesign-error-reason))
+  (:report (lambda (condition stream)
+             (format stream "Mach-O code signing failed for ~A: ~A"
+                     (namestring (macho-codesign-error-filename condition))
+                     (macho-codesign-error-reason condition))))
+  (:documentation "Mach-O code signing could not complete; the target was not replaced."))
+
 (define-condition value-out-of-range (cl-cc-binary-error)
   ((operation :initarg :operation :reader value-out-of-range-operation)
    (value :initarg :value :reader value-out-of-range-value)

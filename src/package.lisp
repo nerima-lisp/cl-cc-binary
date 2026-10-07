@@ -7,6 +7,9 @@
   (:export
    ;; Conditions
    #:cl-cc-binary-error
+   #:macho-codesign-error
+   #:macho-codesign-error-filename
+   #:macho-codesign-error-reason
    #:value-out-of-range
    #:value-out-of-range-operation
    #:value-out-of-range-value

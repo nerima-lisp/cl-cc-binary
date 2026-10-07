@@ -2,16 +2,14 @@
 
 (defparameter *macho-codesign-timeout-seconds* 30
   "Timeout in seconds for the external codesign invocation.
-codesign has been observed to hang (e.g. on keychain access); on timeout the
-binary is left unsigned, matching the existing best-effort semantics where a
-codesign failure is ignored.")
+codesign has been observed to hang (e.g. on keychain access); timeout and
+nonzero exit are reported as errors so callers cannot publish an unsigned file.")
 
 (defvar *binary-logger* nil
   "Optional CL-LOG-KIT logger for structured Mach-O/ELF/PE emission
 diagnostics. NIL (the default) keeps this library silent, mirroring
 CL-PROCESS-KIT's *PROCESS-LOGGER* convention: bind this to a
-LOG-KIT:MAKE-LOGGER instance to observe otherwise-silent failure paths, such
-as a timed-out or failed codesign invocation below.")
+LOG-KIT:MAKE-LOGGER instance to observe successful codesign diagnostics.")
 
 (defun %macho-log-codesign-outcome (outcome filename &key condition)
   "Log OUTCOME (:OK, :TIMEOUT, or :ERROR) for the codesign invocation on
@@ -49,22 +47,48 @@ function's return value."
     (process-kit:process-timeout-error () (funcall on-timeout))
     (process-kit:process-error (condition) (funcall on-error condition))))
 
-(defun write-mach-o-file (filename mach-o-bytes &key (codesign t))
-  "Write MACH-O-BYTES to FILENAME as a binary file."
-  (declare (type (or pathname string) filename)
-           (type (simple-array (unsigned-byte 8) (*)) mach-o-bytes))
+(defun %macho-codesign-program ()
+  "Return the host codesign program pathname, or NIL when unavailable."
+  (probe-file "/usr/bin/codesign"))
+
+(defun %macho-write-bytes (filename mach-o-bytes)
   (with-open-file (out filename
                         :direction :output
                         :element-type '(unsigned-byte 8)
                         :if-exists :supersede
                         :if-does-not-exist :create)
     (write-sequence mach-o-bytes out))
-  (when codesign
-    (let ((codesign-program (probe-file "/usr/bin/codesign")))
-      (when codesign-program
-        (%macho-codesign-cps
-         codesign-program filename
-         (lambda () (%macho-log-codesign-outcome :ok filename))
-         (lambda () (%macho-log-codesign-outcome :timeout filename))
-         (lambda (condition) (%macho-log-codesign-outcome :error filename :condition condition))))))
   filename)
+
+(defun write-mach-o-file (filename mach-o-bytes &key (codesign t))
+  "Write MACH-O-BYTES to FILENAME, replacing it only after signing succeeds."
+  (declare (type (or pathname string) filename)
+           (type (simple-array (unsigned-byte 8) (*)) mach-o-bytes))
+  (let ((target (pathname filename)))
+    (if codesign
+        (let ((staged (uiop:tmpize-pathname target)))
+          (unwind-protect
+               (progn
+                 (%macho-write-bytes staged mach-o-bytes)
+                 (let ((codesign-program (%macho-codesign-program)))
+                   (unless codesign-program
+                     (error 'macho-codesign-error
+                            :filename target
+                            :reason "codesign is unavailable"))
+                   (%macho-codesign-cps
+                    codesign-program staged
+                    (lambda ()
+                      (uiop:rename-file-overwriting-target staged target)
+                      (%macho-log-codesign-outcome :ok target))
+                    (lambda ()
+                      (error 'macho-codesign-error
+                             :filename target
+                             :reason "codesign timed out"))
+                    (lambda (condition)
+                      (error 'macho-codesign-error
+                             :filename target
+                             :reason condition))))
+                 target)
+            (when (probe-file staged)
+              (ignore-errors (delete-file staged)))))
+        (%macho-write-bytes target mach-o-bytes))))
