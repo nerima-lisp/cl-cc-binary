@@ -23,7 +23,7 @@
     # cl-date-kit/cl-concurrent-kit/cl-host-kit (below), used directly with no
     # adapter layer.
     cl-log-kit = {
-      url = "github:nerima-lisp/cl-log-kit/v2.0.1";
+      url = "github:nerima-lisp/cl-log-kit/v2.2.0";
       flake = false;
     };
 
@@ -32,15 +32,15 @@
     # a source tree, not a built package, so every transitive dependency needs
     # its own input).
     cl-date-kit = {
-      url = "github:nerima-lisp/cl-date-kit/v0.2.0";
+      url = "github:nerima-lisp/cl-date-kit/v1.1.1";
       flake = false;
     };
     cl-concurrent-kit = {
-      url = "github:nerima-lisp/cl-concurrent-kit/v0.3.0";
+      url = "github:nerima-lisp/cl-concurrent-kit/v0.6.1";
       flake = false;
     };
     cl-host-kit = {
-      url = "github:nerima-lisp/cl-host-kit/v0.2.5";
+      url = "github:nerima-lisp/cl-host-kit/v0.3.1";
       flake = false;
     };
 
@@ -48,7 +48,11 @@
     # escalation) for the codesign invocation in WRITE-MACH-O-FILE, replacing
     # a hand-rolled SB-EXT:RUN-PROGRAM + SB-EXT:WITH-TIMEOUT pair.
     cl-process-kit = {
-      url = "github:nerima-lisp/cl-process-kit/v3.1.0";
+      url = "github:nerima-lisp/cl-process-kit/v3.4.0";
+      flake = false;
+    };
+    cl-codec-kit = {
+      url = "github:nerima-lisp/cl-codec-kit/v0.6.0";
       flake = false;
     };
 
@@ -61,13 +65,13 @@
     # Runtime: cl-process-kit's own dependency (clock/sleeper boundaries),
     # pulled transitively for the same reason as cl-log-kit's above.
     cl-boundary-kit = {
-      url = "github:nerima-lisp/cl-boundary-kit/v2.0.1";
+      url = "github:nerima-lisp/cl-boundary-kit/v2.3.0";
       flake = false;
     };
 
     # Test-only: the org's test framework.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.1.4";
+      url = "github:nerima-lisp/cl-weave/v1.4.0";
       flake = false;
     };
 
