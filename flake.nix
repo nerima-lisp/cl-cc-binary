@@ -56,12 +56,6 @@
       flake = false;
     };
 
-    # Runtime: cl-process-kit's UTF-8 and stream codec dependency.
-    cl-codec-kit = {
-      url = "github:nerima-lisp/cl-codec-kit/v0.6.0";
-      flake = false;
-    };
-
     # Runtime: cl-process-kit's own dependency (clock/sleeper boundaries),
     # pulled transitively for the same reason as cl-log-kit's above.
     cl-boundary-kit = {
