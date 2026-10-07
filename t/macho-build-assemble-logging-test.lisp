@@ -1,12 +1,7 @@
 ;;;; t/macho-build-assemble-logging-test.lisp — *binary-logger* structured diagnostics
 ;;;;
-;;;; write-mach-o-file's codesign step is the only currently-silent failure
-;;;; path in this library, and driving it end-to-end needs a real macOS
-;;;; /usr/bin/codesign plus a forced timeout or failure, neither of which is
-;;;; deterministic across CI hosts. %macho-log-codesign-outcome factors the
-;;;; "what to log for a given outcome" decision out of that untestable
-;;;; process invocation, so it is exercised directly here with a captured
-;;;; cl-log-kit function-handler instead.
+;;;; %macho-log-codesign-outcome retains structured success diagnostics while
+;;;; write-mach-o-file propagates timeout and nonzero-exit failures.
 
 (in-package :cl-cc-binary/test)
 
@@ -55,3 +50,11 @@ records are captured into a list, and return that list (oldest first)."
       (expect (log-kit:log-record-message (first records)) :to-match "codesign failed")
       (expect (log-kit:log-record-fields (first records))
               :to-have-property :reason "boom"))))
+
+(describe "write-mach-o-file codesign failure propagation"
+  (it "signals instead of returning an invalid unsigned file"
+    (uiop:with-temporary-file (:pathname path)
+      (let ((bytes (make-array 1 :element-type '(unsigned-byte 8)
+                               :initial-element 0)))
+        (signals error
+          (cl-cc/binary:write-mach-o-file path bytes :codesign t))))))

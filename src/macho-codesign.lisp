@@ -2,16 +2,14 @@
 
 (defparameter *macho-codesign-timeout-seconds* 30
   "Timeout in seconds for the external codesign invocation.
-codesign has been observed to hang (e.g. on keychain access); on timeout the
-binary is left unsigned, matching the existing best-effort semantics where a
-codesign failure is ignored.")
+codesign has been observed to hang (e.g. on keychain access); timeout and
+nonzero exit are reported as errors so callers cannot publish an unsigned file.")
 
 (defvar *binary-logger* nil
   "Optional CL-LOG-KIT logger for structured Mach-O/ELF/PE emission
 diagnostics. NIL (the default) keeps this library silent, mirroring
 CL-PROCESS-KIT's *PROCESS-LOGGER* convention: bind this to a
-LOG-KIT:MAKE-LOGGER instance to observe otherwise-silent failure paths, such
-as a timed-out or failed codesign invocation below.")
+LOG-KIT:MAKE-LOGGER instance to observe successful codesign diagnostics.")
 
 (defun %macho-log-codesign-outcome (outcome filename &key condition)
   "Log OUTCOME (:OK, :TIMEOUT, or :ERROR) for the codesign invocation on
@@ -61,10 +59,14 @@ function's return value."
     (write-sequence mach-o-bytes out))
   (when codesign
     (let ((codesign-program (probe-file "/usr/bin/codesign")))
-      (when codesign-program
-        (%macho-codesign-cps
-         codesign-program filename
-         (lambda () (%macho-log-codesign-outcome :ok filename))
-         (lambda () (%macho-log-codesign-outcome :timeout filename))
-         (lambda (condition) (%macho-log-codesign-outcome :error filename :condition condition))))))
+      (unless codesign-program
+        (error "Mach-O code signing requested but /usr/bin/codesign is unavailable"))
+      (%macho-codesign-cps
+       codesign-program filename
+       (lambda () (%macho-log-codesign-outcome :ok filename))
+       (lambda ()
+         (error "Mach-O code signing timed out for ~A" (namestring filename)))
+       (lambda (condition)
+         (error "Mach-O code signing failed for ~A: ~A"
+                (namestring filename) condition)))))
   filename)
