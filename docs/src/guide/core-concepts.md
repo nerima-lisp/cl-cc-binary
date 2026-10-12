@@ -9,8 +9,8 @@ Every emitter takes and returns `(simple-array (unsigned-byte 8) (*))`. There
 is no stream abstraction at the boundary and no file handle: `compile-to-elf64`
 returns a vector, and `write-elf64-file` is a separate two-line function that
 puts a vector on disk. The consequence worth knowing is that images are built
-entirely in memory, so a large program's object file exists twice at peak — once
-as `*code*` and once as the assembled image.
+entirely in memory. Peak memory includes the input code, growing output buffers,
+and the assembled image.
 
 Internally two buffer types accumulate output. `binary-buffer` is a bare
 adjustable byte vector with a fill pointer, and `byte-buffer` is a CLOS wrapper
@@ -75,21 +75,16 @@ first, and the one-shot functions grew keyword arguments (`:arch`, `:bss-size`,
 ## Diagnostics
 
 `write-mach-o-file` shells out to `codesign` before replacing the target. A
-timeout or non-zero exit signals `macho-codesign-error`, leaving an existing
-target unchanged. Successful signing can still be observed through the
-optional logger:
+missing signing program, timeout, or non-zero exit signals
+`macho-codesign-error`, leaving an existing target unchanged. The writer stages
+the file and replaces the target only after signing succeeds. Passing
+`:codesign nil` explicitly writes an unsigned file.
 
-```lisp
-(setf cl-cc/binary:*binary-logger* (log-kit:make-logger))
-```
-
-The default is `nil`, and with `nil` the library emits nothing at all. This
-mirrors [cl-process-kit](https://nerima-lisp.github.io/cl-process-kit/)'s
-`*process-logger*` convention — fittingly, since `cl-process-kit:run` is what
-guards the `codesign` invocation itself with a timeout, and
-[cl-log-kit](https://nerima-lisp.github.io/cl-log-kit/) is what
-`*binary-logger*` is bound to. Both are hard dependencies: the binding has to
-exist even when nobody uses it.
+`*binary-logger*` defaults to `nil`, disabling optional diagnostic logging,
+not condition signaling. Successful signing does not emit a logger event.
+[cl-process-kit](https://nerima-lisp.github.io/cl-process-kit/) bounds the
+signing process, and [cl-log-kit](https://nerima-lisp.github.io/cl-log-kit/)
+provides the optional logger. Both are runtime dependencies.
 
 ## Optimization passes
 

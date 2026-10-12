@@ -21,10 +21,12 @@ Add the input, pinned to a release tag. A bare `github:nerima-lisp/cl-cc-binary`
 follows the default branch, which means a push here can break your build
 without warning.
 
+The example pins v0.2.1. Version 0.2.2 is an unreleased candidate.
+
 ```nix
 # flake.nix
 inputs.cl-cc-binary = {
-  url = "github:nerima-lisp/cl-cc-binary/v0.2.0";
+  url = "github:nerima-lisp/cl-cc-binary/v0.2.1";
   flake = false;
 };
 ```
@@ -57,7 +59,7 @@ The trailing `//` tells ASDF to search the tree recursively.
 ```lisp
 (asdf:load-system "cl-cc-binary")
 (asdf:component-version (asdf:find-system "cl-cc-binary"))
-;; => "0.2.0"
+;; => "0.2.1"
 ```
 
 `cl-cc-binary.asd` is the single source of truth for the version: `flake.nix`
@@ -70,8 +72,9 @@ The rest of this page walks one task all the way through: taking twelve bytes
 of x86-64 machine code and writing them out as a Linux ELF executable. The last
 section shows the whole thing as a single form.
 
-Everything below was run against version 0.2.0; the byte counts are the actual
-output.
+The byte counts below are recorded outputs from version 0.2.0, not new
+measurements for 0.2.2. The macOS Mach-O release check does not establish
+execution of this Linux ELF example.
 
 ### The input
 

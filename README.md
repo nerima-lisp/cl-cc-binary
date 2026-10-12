@@ -4,11 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-0a7a5a)](https://nerima-lisp.github.io/cl-cc-binary/)
 
-cl-cc-binary turns a vector of machine-code bytes into a file an operating
-system will load: Mach-O (including universal binaries), ELF relocatable objects
-and executables, PE32+ images and DLLs, and WebAssembly module bytes — with the
-symbol tables, relocations, GOT/PLT stubs, DWARF and `.eh_frame` sections and
-patchable function entries that make them usable. It is the object-file layer of
+cl-cc-binary packages machine-code bytes as Mach-O (including universal
+binaries), ELF relocatable objects and executables, PE32+ images and DLLs, and
+WebAssembly module bytes, with symbol tables, relocations, GOT/PLT stubs,
+DWARF and `.eh_frame` sections, and patchable function entries. Executing an
+image also depends on the target architecture, loader, and runtime. It is the object-file layer of
 the [cl-cc](https://github.com/nerima-lisp/cl-cc) compiler, and a leaf: SBCL
 only, with [cl-log-kit](https://github.com/nerima-lisp/cl-log-kit) and
 [cl-process-kit](https://github.com/nerima-lisp/cl-process-kit) its only two
@@ -16,6 +16,7 @@ direct dependencies and no ties to any other cl-cc package.
 
 Full documentation is published at <https://nerima-lisp.github.io/cl-cc-binary/>.
 The source for that site lives in [docs/src/](docs/src/).
+Release changes and verification scope are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick Start
 
@@ -30,7 +31,7 @@ The source for that site lives in [docs/src/](docs/src/).
   (cl-cc/binary:write-elf64-file
    "/tmp/exit0"
    (cl-cc/binary:compile-to-elf64-exec code '() :type :exec)))
-;; => a 13184-byte statically linked ELF64 executable
+;; Historical 0.2.0 output: a 13184-byte statically linked ELF64 executable
 ```
 
 ## Install
@@ -38,13 +39,13 @@ The source for that site lives in [docs/src/](docs/src/).
 ```nix
 # flake.nix
 inputs.cl-cc-binary = {
-  url = "github:nerima-lisp/cl-cc-binary/v0.2.0";
+  url = "github:nerima-lisp/cl-cc-binary/v0.2.1";
   flake = false;
 };
 ```
 
-Note the pinned tag. Consumers inside this org pin a release tag rather than
-follow the default branch.
+Pin a release tag rather than following the default branch. This example uses
+v0.2.1; version 0.2.2 is an unreleased candidate.
 
 ## Dependencies
 
@@ -66,10 +67,10 @@ test-only dependency and is not in the shipped system.
 
 ## Documentation
 
-- [Getting started](https://nerima-lisp.github.io/cl-cc-binary/quick-start/)
-- [Core concepts](https://nerima-lisp.github.io/cl-cc-binary/core-concepts/)
-- [API reference](https://nerima-lisp.github.io/cl-cc-binary/api-reference/)
-- [Architecture](https://nerima-lisp.github.io/cl-cc-binary/architecture/)
+- [Getting started](docs/src/getting-started.md)
+- [Core concepts](docs/src/guide/core-concepts.md)
+- [API reference](docs/src/reference/api.md)
+- [Architecture](docs/src/reference/architecture.md)
 
 ## Development
 

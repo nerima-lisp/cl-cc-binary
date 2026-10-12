@@ -1,7 +1,8 @@
 # cl-cc-binary
 
-cl-cc-binary turns a vector of machine-code bytes into a file an operating
-system will load. It writes Mach-O (including universal/fat binaries), ELF
+cl-cc-binary wraps machine-code bytes in object and executable formats.
+Execution depends on the target architecture, loader, and runtime. It writes
+Mach-O (including universal/fat binaries), ELF
 relocatable objects and executables, PE32+ images and DLLs, and WebAssembly
 module bytes, plus the metadata that makes them usable: symbol tables,
 relocations, GOT/PLT stubs, DWARF debug and `.eh_frame` unwind sections, and
@@ -33,11 +34,11 @@ runtime, and depends on no other cl-cc package. SBCL only.
 
 ## Stability
 
-The version is 0.2.0 and the exported surface is not yet under a compatibility
-promise. Treat the symbol list in the [API Reference](reference/api.md) as the
-current state rather than a contract; see the
-[release notes](https://github.com/nerima-lisp/cl-cc-binary/releases) for what
-has moved.
+The version is 0.2.2 and the exported surface is not yet under a compatibility
+promise. The [API Reference](reference/api.md) includes a historical symbol
+inventory; `src/package.lisp` defines the current exports. See
+`CHANGELOG.md` at the repository root (outside this site) for changes and
+verification scope.
 
 ## Project
 

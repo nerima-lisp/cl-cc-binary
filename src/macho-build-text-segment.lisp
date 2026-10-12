@@ -88,8 +88,8 @@ Returns the (possibly extended) segment list."
                            :vmsize #x1000
                            :payload const-bytes
                            :nsects 1
-                           :maxprot 4
-                           :initprot 4
+                           :maxprot 1
+                           :initprot 1
                            :cmdsize (+ +macho-segment-command-size+ +macho-section-size+)
                            :sections (list const-section))))
       (push const-segment user-segments)))
@@ -135,4 +135,6 @@ Returns the (possibly extended) segment list."
               (segment-command-maxprot text-seg) 5
               (segment-command-initprot text-seg) 5
               (segment-command-sections text-seg) sections))
-      (%macho-ensure-data-const-segment user-segments))))
+      ;; The header is mapped by TEXT, so it must precede every other payload.
+      (cons text-seg
+            (remove text-seg (%macho-ensure-data-const-segment user-segments))))))

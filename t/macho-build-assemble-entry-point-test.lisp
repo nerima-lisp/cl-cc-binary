@@ -15,6 +15,21 @@
 
 (in-package :cl-cc-binary/test)
 
+(defun %macho-segment-offsets (image)
+  (loop with offset = 32
+        repeat (%macho-u32le image 16)
+        when (= (%macho-u32le image offset) #x19) collect offset
+        do (incf offset (%macho-u32le image (+ offset 4)))))
+
+(defun %macho-u64le (image offset)
+  (+ (%macho-u32le image offset)
+     (ash (%macho-u32le image (+ offset 4)) 32)))
+
+(defun %macho-segment-name (image offset)
+  (map 'string #'code-char
+       (subseq image (+ offset 8)
+               (position 0 image :start (+ offset 8) :end (+ offset 24)))))
+
 (defun %macho-u32le (bytes offset)
   (logior (aref bytes offset)
           (ash (aref bytes (1+ offset)) 8)
@@ -50,3 +65,51 @@
       (cl-cc/binary:build-mach-o builder code)
       (expect (plusp (cl-cc/binary:entry-point-command-entryoff
                   (cl-cc/binary::mach-o-builder-entry-point builder)))))))
+
+(describe "Mach-O mapped segment layout"
+  (dolist (arch '(:x86-64 :arm64))
+    (dolist (size '(12 16385 65537))
+      (it (format nil "keeps ~A segments aligned and disjoint for ~D code bytes" arch size)
+        (let* ((page (if (eq arch :arm64) #x4000 #x1000))
+               (code (make-array size :element-type '(unsigned-byte 8) :initial-element #x42))
+               (data (make-array 19 :element-type '(unsigned-byte 8) :initial-element #x73))
+               (const (make-array 23 :element-type '(unsigned-byte 8) :initial-element #x91))
+               (builder (cl-cc/binary:make-mach-o-builder arch)))
+          ;; Deliberately add TEXT last: file order must not depend on API call order.
+          (cl-cc/binary:add-data-segment builder data)
+          (when (> size 12) (cl-cc/binary:add-data-const-segment builder const))
+          (cl-cc/binary:add-text-segment builder code)
+          (let* ((image (cl-cc/binary:build-mach-o builder code))
+                 (segments (rest (%macho-segment-offsets image)))
+                 (text (first segments))
+                 (entry (cl-cc/binary:entry-point-command-entryoff
+                         (cl-cc/binary::mach-o-builder-entry-point builder))))
+            (expect (%macho-segment-name image text) :to-equalp "__TEXT")
+            (expect (mod entry page) :to-be 0)
+            (expect (subseq image entry (+ entry size)) :to-equalp code)
+            (loop for segment in segments
+                  for name = (%macho-segment-name image segment)
+                  for expected = (cond ((string= name "__TEXT") 5)
+                                       ((string= name "__DATA") 3) (t 1))
+                  do (dolist (field '(24 32 40))
+                       (expect (mod (%macho-u64le image (+ segment field)) page) :to-be 0))
+                     (expect (%macho-u32le image (+ segment 56)) :to-be expected)
+                     (expect (%macho-u32le image (+ segment 60)) :to-be expected)
+                     (expect (<= (%macho-u64le image (+ segment 48))
+                                 (%macho-u64le image (+ segment 32))) :to-be t)
+                     (when (member name '("__DATA" "__DATA_CONST") :test #'string=)
+                       (let* ((section (+ segment 72))
+                              (offset (%macho-u32le image (+ section 48)))
+                              (payload (if (string= name "__DATA") data
+                                           (if (> size 12) const #()))))
+                         (expect (%macho-u64le image (+ section 32))
+                                 :to-be (%macho-u64le image (+ segment 24)))
+                         (expect (subseq image offset (+ offset (length payload)))
+                                 :to-equalp payload)))
+                     (loop for other in (cdr (member segment segments))
+                           do (expect (<= (+ (%macho-u64le image (+ segment 24))
+                                             (%macho-u64le image (+ segment 32)))
+                                          (%macho-u64le image (+ other 24))) :to-be t)
+                              (expect (<= (+ (%macho-u64le image (+ segment 40))
+                                             (%macho-u64le image (+ segment 48)))
+                                          (%macho-u64le image (+ other 40))) :to-be t)))))))))

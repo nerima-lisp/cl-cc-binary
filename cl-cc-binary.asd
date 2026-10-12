@@ -16,7 +16,7 @@ cl-cc package."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.2.1"
+  :version "0.2.2"
   :homepage "https://github.com/nerima-lisp/cl-cc-binary"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-binary/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-binary.git")
@@ -58,6 +58,7 @@ cl-cc package."
    (:file "dwarf")
    (:file "dwarf-eh")
    (:file "elf-emit")
+   (:file "dwarf-dwo")
    (:file "elf-emit-relocatable")
    (:file "elf-emit-executable")
    (:file "elf-compile")
@@ -72,7 +73,7 @@ cl-cc package."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.2.1"
+  :version "0.2.2"
   :homepage "https://github.com/nerima-lisp/cl-cc-binary"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-binary/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-binary.git")
@@ -103,6 +104,7 @@ cl-cc package."
    (:file "icf-test")
    (:file "dwarf-test")
    (:file "dwarf-eh-test")
+   (:file "dwarf-dwo-test")
    (:file "wasm-test"))
   :perform (test-op (op system)
              (declare (ignore op system))

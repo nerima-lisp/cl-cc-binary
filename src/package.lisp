@@ -154,6 +154,10 @@
      #:*icf-enabled*
      #:icf-merge-identical-functions
       #:build-dwarf-debug-sections
+      #:build-dwarf-skeleton-cu
+      #:build-dwo-file
+      #:build-gnu-debuglink-section
+      #:dwarf-crc32
        #:build-dwarf-eh-frame
        #:make-dwarf-eh-fde
        #:dwarf-eh-fde-lsda
