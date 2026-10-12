@@ -12,6 +12,7 @@
 ;;;  constants, structs, buffer helpers, serialization primitives in macho.lisp)
 (in-package :cl-cc/binary)
 
+(defvar *macho-page-size* #x1000)
 
 (defparameter *arch-cpu-specs*
   '((:x86-64 #.+cpu-type-x86-64+ #.+cpu-subtype-x86-64-all+)
@@ -84,7 +85,7 @@ builder."
   (make-segment-command
    :segname "__LINKEDIT"
    :vmaddr vmaddr
-   :vmsize (max #x1000 (align-up filesize #x1000))
+   :vmsize (max *macho-page-size* (align-up filesize *macho-page-size*))
    :fileoff fileoff
    :filesize filesize
    :maxprot 1
@@ -112,8 +113,8 @@ BASE-ADDR is the virtual memory address for the segment."
                          :vmsize (align-up data-size #x1000)
                          :payload data-bytes
                          :nsects 1
-                         :maxprot 6    ; rw-
-                         :initprot 6   ; rw
+                         :maxprot 3    ; rw-
+                         :initprot 3   ; rw-
                          :cmdsize (+ +macho-segment-command-size+ (* +macho-section-size+ 1))
                          :sections (list data-section))))
     (push data-segment (mach-o-builder-segments builder))
@@ -145,8 +146,8 @@ BASE-ADDR is the virtual memory address for the segment."
           (segment-command-filesize segment) new-size
           (segment-command-nsects segment) 1
           (segment-command-cmdsize segment) (+ +macho-segment-command-size+ +macho-section-size+)
-          (segment-command-maxprot segment) 4
-          (segment-command-initprot segment) 4
+          (segment-command-maxprot segment) 1
+          (segment-command-initprot segment) 1
           (segment-command-sections segment) (list section))
     old-size))
 
@@ -169,8 +170,8 @@ constant data are rejected by the operating system."
                                   :vmsize #x1000
                                   :payload (make-array 0 :element-type '(unsigned-byte 8))
                                   :nsects 1
-                                  :maxprot 4    ; r--
-                                  :initprot 4   ; r--
+                                  :maxprot 1    ; r--
+                                  :initprot 1   ; r--
                                   :cmdsize (+ +macho-segment-command-size+
                                              (* +macho-section-size+ 1))
                                   :sections (list (make-section

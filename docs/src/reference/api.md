@@ -1,13 +1,12 @@
 # API Reference
 
-Every symbol exported from the `cl-cc/binary` package, as of version 0.2.0 —
-171 in total: 107 functions (45 operations, 53 structure accessors and 9
-condition accessors), 2 macros, 3 variables, 36 constants, 17 structure classes
-and 6 condition classes.
+The original inventory recorded 171 exports at version 0.2.0: 107 functions,
+2 macros, 3 variables, 36 constants, 17 structure classes, and 6 condition
+classes. This page also documents subsequent additions; that historical count
+is not the export count for 0.2.2. `src/package.lisp` defines the current exports.
 
-Symbols not listed here are internal, whatever their visibility from the
-package. In particular `binary-buffer`, `byte-buffer`, `build-compression-metadata`
-and the `%`-prefixed helpers are implementation detail.
+`binary-buffer`, `byte-buffer`, `build-compression-metadata`, and the
+`%`-prefixed helpers are implementation details.
 
 ## Emitting object files
 
@@ -225,10 +224,10 @@ executable. It verifies; it does not repair.
 
 ## Conditions
 
-`cl-cc-binary-error` is the base condition every error this package signals
-derives from, so `(handler-case ... (cl-cc/binary:cl-cc-binary-error (c) ...))`
-catches everything this package signals. It names no slots or accessors of its
-own — it exists purely as the common superclass.
+Library-defined error conditions derive from `cl-cc-binary-error`, which has
+no slots of its own. A handler for that class catches those conditions, not
+every possible host error: filesystem or argument-type failures may signal
+other condition classes.
 
 Each subclass below carries `:reader`-bearing slots for programmatic
 inspection: the "Slots" column names the initargs, and "Accessors" the exported
@@ -243,6 +242,7 @@ document).
 | `patchable-entry-overflow` | `patch-function-entry` | `size`, `reserved` | `patchable-entry-overflow-size`, `-reserved` |
 | `pe-section-not-found` | `pe-finalize` | `name` | `pe-section-not-found-name` |
 | `macho-unknown-architecture` | `make-mach-o-builder` | `arch` | `macho-unknown-architecture-arch` |
+| `macho-codesign-error` | `write-mach-o-file` | `filename`, `reason` | `macho-codesign-error-filename`, `-reason` |
 
 ## Buffers and serialization
 
@@ -323,10 +323,9 @@ one reader per slot; only the slots are listed.
 ### `*binary-logger*`
 
 Optional [cl-log-kit](https://nerima-lisp.github.io/cl-log-kit/) logger for
-structured Mach-O, ELF and PE emission diagnostics. `nil` by default, which
-keeps the library completely silent. Bind it to a `log-kit:make-logger` instance
-to observe failure paths that cannot signal — a timed-out or failed `codesign`
-invocation in `write-mach-o-file` being the motivating case.
+emission diagnostics. `nil` by default, disabling diagnostic logging.
+This does not suppress conditions: signing failures in `write-mach-o-file`
+signal `macho-codesign-error`. Successful signing does not emit a logger event.
 
 ### `*icf-enabled*`
 

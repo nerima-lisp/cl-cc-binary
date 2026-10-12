@@ -11,7 +11,10 @@ Function order in CODE-BYTES is emitted unchanged so pipeline-level function
 reordering directly controls the final text layout."
   (declare (type mach-o-builder builder)
            (type (simple-array (unsigned-byte 8) (*)) code-bytes))
-  (let* ((buffer (make-byte-buffer 65536))
+  (let* ((*macho-page-size* (if (= (mach-header-cputype (mach-o-builder-header builder))
+                                  +cpu-type-arm64+)
+                              #x4000 #x1000))
+         (buffer (make-byte-buffer 65536))
          (header-size 32)
          (user-segments (%mach-o-ensure-text-and-unwind
                          (nreverse (mach-o-builder-segments builder))
@@ -31,7 +34,7 @@ reordering directly controls the final text layout."
          (has-bind-info (plusp (length bind-bytes)))
          (cmd-sizes (%build-macho-command-sizes user-segments has-symbols))
          (cmds-size (getf cmd-sizes :total))
-         (code-offset (align-up (+ header-size cmds-size) 4096))
+         (code-offset (align-up (+ header-size cmds-size) *macho-page-size*))
          (linkedit-fileoff (%build-macho-file-offsets code-offset user-segments code-bytes))
          (nsyms (length symbols))
          (relocoff (if (plusp relocation-size) linkedit-fileoff 0))
@@ -53,9 +56,13 @@ reordering directly controls the final text layout."
                                    0)
                                bind-size
                                code-signature-size))
-         (linkedit-seg (%make-linkedit-segment linkedit-fileoff linkedit-filesize
-                                               (+ +macho-text-base-addr+ linkedit-fileoff))))
-    (declare (ignore bind-off))
+         (layout (%update-macho-segment-offsets user-segments code-bytes code-offset relocoff relocations))
+         (linkedit-seg (%make-linkedit-segment
+                        linkedit-fileoff linkedit-filesize
+                        (loop for seg in user-segments
+                              maximize (+ (segment-command-vmaddr seg)
+                                          (segment-command-vmsize seg))))))
+    (declare (ignore bind-off layout))
     ;; Update Mach-O header
     (let ((header (mach-o-builder-header builder)))
       (setf (mach-header-ncmds header)
@@ -66,8 +73,6 @@ reordering directly controls the final text layout."
     ;; Set entryoff = code-offset (offset within __TEXT, which starts at fileoff=0)
     (setf (entry-point-command-entryoff (mach-o-builder-entry-point builder))
           code-offset)
-    ;; Lay out file offsets for all user segments and their sections
-    (%update-macho-segment-offsets user-segments code-bytes code-offset relocoff relocations)
     ;; Serialize load commands into buffer
     (%serialize-macho-commands buffer builder user-segments linkedit-seg
                                has-symbols symoff nsyms stroff strsize

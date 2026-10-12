@@ -1,17 +1,15 @@
 # Architecture
 
-`src/` is flat — 32 files, 4,622 lines, no subdirectories — and loaded
-`:serial t` in the order given by `cl-cc-binary.asd`. The flatness is a
-constraint from the org package standard rather than a design choice; the
-grouping below is expressed by file name prefix instead.
+The source files are loaded `:serial t` in the order given by
+`cl-cc-binary.asd`. The grouping below follows their file-name prefixes.
 
 ## Layers
 
 The load order is the dependency order, and it has four bands.
 
 **Primitives.** `package.lisp` defines `cl-cc/binary` and its exports.
-`conditions.lisp` defines the `cl-cc-binary-error` condition hierarchy every
-other file signals through. `binary-struct.lisp` provides
+`conditions.lisp` defines the library's `cl-cc-binary-error` condition
+hierarchy. `binary-struct.lisp` provides
 `define-binary-struct`, `binary-writer.lisp` the `with-output-to-vector`
 macro, and `macho-buffer.lisp` the two buffer types, the little-endian
 serialization primitives, and the `with-byte-buffer` macro and
@@ -75,42 +73,30 @@ They were divided along the seams that already existed in them:
 | `pe` | `pe`, `pe-tables`, `pe-finalize` | builder state, import/export/relocation tables, image assembly |
 | `elf` | `elf-constants`, `elf-strtab`, `elf` | spec constants, buffer/string-table primitives, the builder accumulation API |
 
-Every file is under, or (`elf-emit-executable.lisp`, at 299) right at, the
-300-line target in `CODING_STANDARD.md`; it and `dwarf.lisp` (275) are the
-largest. `elf64-finalize-executable`'s section-header-index arithmetic —
-seven bindings computing where `.dynsym`/`.dynstr`/`.symtab`/etc. land in the
-section header table, themselves independent of everything else the
-function computes — is `%elf64-section-header-indices`, a small pure
-function with its own direct tests (`t/architecture-test.lisp`) instead of
-only being reachable through the full assembly pipeline. The rest of the
-function stays one long `let*`: it is a strict, linear chain of ELF file
-offsets where each binding depends only on the ones immediately before it,
-which is the clearest style available for that shape of computation, not a
-readability problem to keep dividing.
+The section-header-index arithmetic used by `elf64-finalize-executable`
+is factored into `%elf64-section-header-indices`, with direct tests in
+`t/architecture-test.lisp`. The remaining `let*` computes file offsets in
+dependency order.
 
 ## Memory
 
 Images are assembled entirely in memory. `build-mach-o`, `compile-to-elf64` and
 `compile-to-pe` each return a fresh byte vector, and the buffers they accumulate
 into are adjustable vectors that double as they grow. At peak, a build holds the
-input code vector, the growing buffer and the final copy simultaneously. That is
-fine for the program sizes cl-cc produces and would need rethinking for
-link-time work over large object sets.
+input code vector, the growing buffer and the final copy simultaneously.
+Peak memory therefore grows with the image size; this is not a streaming
+linker interface.
 
 ## Conditions and diagnostics
 
-Every condition the package signals derives from `cl-cc-binary-error`
-(`conditions.lisp`), so a caller can catch every failure this library raises
-with one `handler-case` clause. Each condition names the situation it
-reports — `value-out-of-range`, `elf-wx-violation`,
-`patchable-entry-overflow`, `pe-section-not-found`,
-`macho-unknown-architecture` — rather than a generic `-error` suffix, and
-carries `:reader`-bearing slots so a handler can inspect what went wrong
-without parsing a message string.
+Library-defined errors derive from `cl-cc-binary-error`
+(`conditions.lisp`). Their readers expose details such as the rejected value,
+section name, or signing failure reason. Filesystem and argument-type failures
+may use host condition classes instead.
 
-Failures that happen after the useful work is already done — a `codesign`
-timeout or nonzero exit in `write-mach-o-file` — are a different case: there
-is nothing left for a caller to act on, since the binary was already written
-successfully and codesigning is best-effort. Those are reported to
-`*binary-logger*`, which is `nil` by default, instead of signalled. See
+`write-mach-o-file` stages the output and signs it before replacing the target.
+A missing signing program, timeout, or nonzero exit signals
+`macho-codesign-error` and leaves an existing target unchanged.
+Passing `:codesign nil` explicitly bypasses signing and writes unsigned bytes.
+The optional logger does not replace this error contract. See
 [Core Concepts](../guide/core-concepts.md#diagnostics).

@@ -144,29 +144,57 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          mkLispSystem =
+            name: lispLibs:
+            let
+              src = inputs.${name};
+              versionLines = builtins.filter (
+                line: builtins.match "[[:space:]]*:version \"[^\"]*\"" line != null
+              ) (pkgs.lib.splitString "\n" (builtins.readFile "${src}/${name}.asd"));
+            in
+            pkgs.sbcl.buildASDFSystem {
+              pname = name;
+              version = builtins.head (
+                builtins.match "[[:space:]]*:version \"([^\"]*)\"" (builtins.head versionLines)
+              );
+              inherit src lispLibs;
+              systems = [ name ];
+            };
+          lispPackages = rec {
+            host = mkLispSystem "cl-host-kit" [ ];
+            date = mkLispSystem "cl-date-kit" [ ];
+            codec = mkLispSystem "cl-codec-kit" [ ];
+            boundary = mkLispSystem "cl-boundary-kit" [ host ];
+            concurrent = mkLispSystem "cl-concurrent-kit" [
+              boundary
+              date
+            ];
+            log = mkLispSystem "cl-log-kit" [
+              date
+              concurrent
+              host
+            ];
+            process = mkLispSystem "cl-process-kit" [
+              boundary
+              log
+              codec
+              concurrent
+            ];
+          };
         in
         rec {
-          cl-cc-binary = pkgs.stdenvNoCC.mkDerivation {
+          cl-cc-binary = pkgs.sbcl.buildASDFSystem {
             pname = "cl-cc-binary";
             inherit version;
             src = self;
-            nativeBuildInputs = [ pkgs.sbcl ];
-            # Compiles and loads the shipped system without the test framework
-            # present, so a stray dependency on cl-weave from src/ fails here
-            # rather than at a consumer's site.
-            buildPhase = ''
-              runHook preBuild
-              export HOME="$TMPDIR/home"
-              mkdir -p "$HOME"
-              export CL_SOURCE_REGISTRY="${runtimeRegistry}"
-              sbcl --script scripts/run-compile-check.lisp
-              runHook postBuild
-            '';
-            installPhase = ''
-              runHook preInstall
-              mkdir -p "$out/share/common-lisp/source/cl-cc-binary"
-              cp -R . "$out/share/common-lisp/source/cl-cc-binary"
-              runHook postInstall
+            systems = [ "cl-cc-binary" ];
+            lispLibs = with lispPackages; [
+              log
+              process
+            ];
+            # Keep the compile/load gate without adding the test framework.
+            postBuild = ''
+              ${pkgs.sbcl}/bin/sbcl --script scripts/run-compile-check.lisp
             '';
             meta = {
               description = "cl-cc binary-format emitters — Mach-O, ELF, PE and WebAssembly module bytes";
@@ -273,6 +301,8 @@
 
           # The shipped system compiles and loads without cl-weave present.
           compile = self.packages.${system}.cl-cc-binary;
+
+          package = self.packages.${system}.default;
 
           # Fails `nix flake check` when any tracked Nix file is unformatted,
           # turning the formatter into an enforced gate.

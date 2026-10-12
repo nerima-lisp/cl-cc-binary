@@ -52,7 +52,7 @@
                            (segment-command-fileoff seg))))
       (buffer-pad-to buffer target-off)
       (serialize-bytes payload buffer)
-      (buffer-pad-to buffer (align-up (+ target-off (length payload)) #x1000))))
+      (buffer-pad-to buffer (align-up (+ target-off (length payload)) *macho-page-size*))))
   ;; Pad to __LINKEDIT start
   (buffer-pad-to buffer linkedit-fileoff)
   ;; Write relocation entries, symbol table, bind info, code signature

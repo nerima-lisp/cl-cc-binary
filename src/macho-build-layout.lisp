@@ -42,23 +42,27 @@ Returns the file offset of __LINKEDIT."
                        (zerop (length (segment-command-payload seg))))
                   (length code-bytes)
                   (length (segment-command-payload seg)))))
-        (incf off (align-up payload-len #x1000))))))
+        (incf off (align-up payload-len *macho-page-size*))))))
 
 (defun %update-macho-segment-offsets (user-segments code-bytes code-offset relocoff relocations)
   "Assign file offsets and section offsets to all user segments in place."
-  (let ((next-off code-offset))
+  (let ((next-off code-offset)
+        (next-vmaddr 0))
     (dolist (seg user-segments)
       (let* ((is-text (and (string= (segment-command-segname seg) "__TEXT")
                            (zerop (length (segment-command-payload seg)))))
              (payload (if is-text code-bytes (segment-command-payload seg)))
              (payload-len (length payload)))
+        ;; Requested bases are lower bounds; preceding mappings may grow past them.
+        (setf (segment-command-vmaddr seg)
+              (align-up (max next-vmaddr (segment-command-vmaddr seg)) *macho-page-size*))
         (cond
           ((string= (segment-command-segname seg) "__TEXT")
            ;; __TEXT: fileoff=0, covers from file start through end of code
            ;; and the compact __unwind_info table.
            (setf (segment-command-fileoff seg) 0
-                 (segment-command-filesize seg) (+ code-offset payload-len)
-                 (segment-command-vmsize seg) (align-up (+ code-offset payload-len) #x1000))
+                 (segment-command-filesize seg) (align-up (+ code-offset payload-len) *macho-page-size*)
+                 (segment-command-vmsize seg) (segment-command-filesize seg))
            (dolist (sect (segment-command-sections seg))
              (let ((section-delta
                      (loop with delta = 0
@@ -74,11 +78,22 @@ Returns the file offset of __LINKEDIT."
                           (plusp (length relocations)))
                  (setf (section-reloff sect) relocoff
                        (section-nreloc sect) (length relocations)))))
-           (setf next-off (+ code-offset (align-up payload-len #x1000))))
+           (setf next-off (+ code-offset (align-up payload-len *macho-page-size*))))
           (t
            ;; Other segments (e.g. __DATA): sequential after code
            (setf (segment-command-fileoff seg) next-off
-                 (segment-command-filesize seg) payload-len)
+                 (segment-command-filesize seg) payload-len
+                 (segment-command-vmsize seg)
+                 (max *macho-page-size* (align-up payload-len *macho-page-size*)))
            (dolist (sect (segment-command-sections seg))
-             (setf (section-offset sect) next-off))
-           (incf next-off (align-up payload-len #x1000))))))))
+             (let ((section-delta
+                     (loop with delta = 0
+                           for prior in (segment-command-sections seg)
+                           until (eq prior sect)
+                           do (setf delta (align-up (+ delta (section-size prior)) 4))
+                           finally (return delta))))
+               (setf (section-offset sect) (+ next-off section-delta)
+                     (section-addr sect) (+ (segment-command-vmaddr seg) section-delta))))
+           (incf next-off (align-up payload-len *macho-page-size*))))
+        (setf next-vmaddr (+ (segment-command-vmaddr seg)
+                            (segment-command-vmsize seg)))))))

@@ -31,15 +31,14 @@ build caching; a second job would duplicate that and lose the cache sharing.
 
 ## Declared systems
 
-The flake declares `x86_64-linux`, and nothing else. That is the one platform
-actually verified: CI builds it, and nothing else is gated anywhere.
-`aarch64-darwin` was dropped on 2026-08-01 because its only verification was a
-local `nix flake check` a developer could forget to run. `ci.yml` does not pass
-`--all-systems`; with one declared system it would check nothing extra.
+The flake declares `x86_64-linux` and `aarch64-darwin`. CI runs
+`nix flake check` on Linux; Darwin outputs support local development and have
+no CI gate. Every per-system output comes from that list, including `devShells`.
 
-Every per-system output comes from that one list, `devShells` included, so
-`nix develop` and `nix build` do not work on macOS. Development happens on
-Linux.
+Declared outputs and CI configuration do not establish that checks passed for
+the unreleased 0.2.2 candidate. The verification recorded in the repository's
+`CHANGELOG.md` covers package tests and a macOS arm64 Mach-O fixture, not
+Linux/Nix readiness or execution of the Linux ELF example.
 
 ## Running the tests without Nix
 
@@ -109,5 +108,5 @@ empty draft. Write the release notes into that draft and publish it:
 gh release edit vX.Y.Z --notes-file release-notes.md --draft=false
 ```
 
-The release description is the only canonical changelog in this org; there is
-no `CHANGELOG.md` in the tree.
+GitHub release descriptions record published releases. The repository's
+`CHANGELOG.md` records candidate changes and their verification scope.
