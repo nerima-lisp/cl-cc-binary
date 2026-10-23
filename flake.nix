@@ -291,6 +291,51 @@
                 touch "$out/passed"
               '';
 
+          orphan-tests =
+            pkgs.runCommand "cl-cc-binary-orphan-tests"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+              }
+              ''
+                python - ${self}/cl-cc-binary.asd ${self}/t <<'PY'
+                import pathlib
+                import re
+                import sys
+
+                asd_path, test_root = map(pathlib.Path, sys.argv[1:])
+                source = asd_path.read_text()
+                start = source.find('(defsystem "cl-cc-binary/test"')
+                if start < 0:
+                    raise SystemExit('Missing cl-cc-binary/test system')
+                end = source.find('\n(defsystem "', start + 1)
+                system = source[start:end if end >= 0 else None]
+                components = re.findall(r'\(:file\s+"([^"]+)"\)', system)
+                registered = {
+                    pathlib.PurePosixPath(component).with_suffix("").as_posix()
+                    for component in components
+                }
+                on_disk = {
+                    path.relative_to(test_root).with_suffix("").as_posix()
+                    for path in test_root.rglob("*.lisp")
+                }
+                if not on_disk:
+                    raise SystemExit('No test Lisp files found under t/')
+
+                orphaned = sorted(on_disk - registered)
+                missing = sorted(registered - on_disk)
+                if orphaned:
+                    print("Test files not loaded by cl-cc-binary/test:")
+                    print("\n".join(orphaned), file=sys.stderr)
+                if missing:
+                    print("Test components missing from t/:", file=sys.stderr)
+                    print("\n".join(missing), file=sys.stderr)
+                if orphaned or missing:
+                    raise SystemExit(1)
+                print(f"{len(on_disk)} test Lisp files loaded by cl-cc-binary/test")
+                PY
+                touch "$out"
+              '';
+
           # The shipped system compiles and loads without cl-weave present.
           compile = self.packages.${system}.cl-cc-binary;
 

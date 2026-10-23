@@ -17,15 +17,12 @@
 ;; adds the tree without discarding what the environment provides.
 (push (uiop:pathname-directory-pathname *load-truename*) asdf:*central-registry*)
 
-(handler-case (asdf:load-system "cl-cc-binary/test")
+(handler-case
+    (progn
+      (asdf:test-system "cl-cc-binary")
+      (format t "~&RESULT: ALL PASS~%")
+      (finish-output))
   (error (e)
-    (format t "~&FAIL load: ~a~%" e)
+    (format t "~&RESULT: FAIL~%FAIL: ~a~%" e)
     (finish-output)
     (uiop:quit 1)))
-
-(if (uiop:symbol-call :cl-weave :run-all :reporter :spec :pass-with-no-tests nil)
-    (progn (format t "~&RESULT: ALL PASS~%")
-           (finish-output))
-    (progn (format t "~&RESULT: FAIL~%")
-           (finish-output)
-           (uiop:quit 1)))
