@@ -105,7 +105,8 @@ cl-cc package."
    (:file "dwarf-test")
    (:file "dwarf-eh-test")
    (:file "dwarf-dwo-test")
-   (:file "wasm-test"))
+   (:file "wasm-test")
+   (:file "test-failure-control-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-weave :run-all
