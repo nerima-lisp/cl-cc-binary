@@ -3,7 +3,6 @@
 ;;;; Both systems live in this one file. System names are written as strings so
 ;;;; that they do not depend on the reader's current package, and so that a grep
 ;;;; for a system name has exactly one spelling to match.
-
 (in-package #:asdf-user)
 
 (defsystem "cl-cc-binary"
@@ -33,39 +32,28 @@ cl-cc package."
   :pathname "src"
   :serial t
   :components
-  ((:file "package")
-   (:file "conditions")
-   (:file "binary-struct")
-   (:file "binary-writer")
-   (:file "macho")
-   (:file "macho-buffer")
-   (:file "macho-fat")
-   (:file "macho-serialize")
-   (:file "macho-build")
-   (:file "macho-build-compression")
-   (:file "macho-build-text-segment")
-   (:file "macho-build-dyld")
-   (:file "macho-build-layout")
-   (:file "macho-build-serialize")
-   (:file "macho-build-assemble")
-   (:file "macho-codesign")
-   (:file "elf-constants")
-   (:file "elf-strtab")
-   (:file "elf")
-   (:file "icf")
-   (:file "got-plt")
-   (:file "patchable-entry")
-   (:file "dwarf")
-   (:file "dwarf-eh")
-   (:file "elf-emit")
-   (:file "dwarf-dwo")
-   (:file "elf-emit-relocatable")
-   (:file "elf-emit-executable")
-   (:file "elf-compile")
-   (:file "pe")
-   (:file "pe-tables")
-   (:file "pe-finalize")
-   (:file "wasm"))
+  ((:module "buffer" :pathname "buffer" :serial t :components
+  ((:file "package") (:file "conditions") (:file "binary-struct")
+   (:file "binary-writer") (:file "binary-buffer") (:file "string-table")))
+   (:module "macho" :pathname "macho" :serial t :components
+  ((:file "package") (:file "macho") (:file "macho-fat") (:file "macho-serialize")
+   (:file "macho-build") (:file "macho-build-compression")
+   (:file "macho-build-text-segment") (:file "macho-build-dyld")
+   (:file "macho-build-layout") (:file "macho-build-serialize")
+   (:file "macho-build-assemble") (:file "macho-codesign")))
+   (:module "dwarf" :pathname "dwarf" :serial t :components
+  ((:file "package") (:file "dwarf") (:file "dwarf-eh") (:file "dwarf-dwo")))
+   (:module "elf" :pathname "elf" :serial t :components
+  ((:file "package") (:file "elf-constants") (:file "elf") (:file "elf-emit")
+   (:file "elf-emit-relocatable") (:file "elf-emit-executable")
+   (:file "elf-compile")))
+   (:module "linking" :pathname "linking" :serial t :components
+  ((:file "package") (:file "got-plt") (:file "icf") (:file "patchable-entry")))
+   (:module "pe" :pathname "pe" :serial t :components
+  ((:file "package") (:file "pe") (:file "pe-tables") (:file "pe-finalize")))
+   (:module "wasm" :pathname "wasm" :serial t :components
+  ((:file "package") (:file "wasm")))
+   (:file "facade-package"))
   :in-order-to ((test-op (test-op "cl-cc-binary/test"))))
 
 (defsystem "cl-cc-binary/test"
@@ -84,28 +72,30 @@ cl-cc package."
   :pathname "t"
   :serial t
   :components
-  ((:file "package")
-   (:file "helpers-byte-reader")
-   (:file "macho-buffer-test")
-   (:file "elf-strtab-test")
-   (:file "elf-builder-test")
-   (:file "elf-constant-pool-test")
-   (:file "elf-emit-executable-wxorx-test")
-   (:file "elf-compile-executes-test")
-   (:file "architecture-test")
-   (:file "got-plt-test")
-   (:file "macho-fat-test")
-   (:file "macho-build-compression-test")
-   (:file "macho-build-assemble-entry-point-test")
-   (:file "macho-build-assemble-logging-test")
-   (:file "macho-build-executes-test")
-   (:file "patchable-entry-test")
-   (:file "pe-finalize-test")
-   (:file "icf-test")
-   (:file "dwarf-test")
-   (:file "dwarf-eh-test")
-   (:file "dwarf-dwo-test")
-   (:file "wasm-test"))
+  ((:module "buffer" :pathname "buffer" :serial t :components
+  ((:file "package") (:file "byte-reader-test-support")
+   (:file "macho-buffer-test")))
+   (:module "macho" :pathname "macho" :serial t :components
+  ((:file "package") (:file "macho-architecture-test")
+   (:file "macho-constant-pool-test") (:file "macho-build-assemble-entry-point-test")
+   (:file "macho-build-assemble-logging-test") (:file "macho-build-compression-test")
+   (:file "macho-build-executes-test") (:file "macho-fat-test")))
+   (:module "dwarf" :pathname "dwarf" :serial t :components
+  ((:file "package") (:file "dwarf-test") (:file "dwarf-eh-test")
+   (:file "dwarf-dwo-test")))
+   (:module "elf" :pathname "elf" :serial t :components
+  ((:file "package") (:file "elf-image-test-support")
+   (:file "dwo-container-test") (:file "elf-strtab-test")
+   (:file "elf-builder-test") (:file "elf-constant-pool-test")
+   (:file "elf-emit-executable-wxorx-test") (:file "elf-compile-executes-test")
+   (:file "architecture-test")))
+   (:module "linking" :pathname "linking" :serial t :components
+  ((:file "package") (:file "got-plt-test") (:file "icf-test")
+   (:file "patchable-entry-test")))
+   (:module "pe" :pathname "pe" :serial t :components
+  ((:file "package") (:file "pe-finalize-test")))
+   (:module "wasm" :pathname "wasm" :serial t :components
+  ((:file "package") (:file "wasm-test"))))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-weave :run-all

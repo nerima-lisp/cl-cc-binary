@@ -73,6 +73,7 @@ nav:
   - Reference:
       - API: reference/api.md
       - Architecture: reference/architecture.md
+      - Glossary: reference/glossary.md
   - Project:
       - Development: project/development.md
 

@@ -1,0 +1,273 @@
+(defpackage #:cl-cc/binary
+  (:use #:cl)
+  (:import-from #:cl-cc/binary/buffer
+      #:cl-cc-binary-error #:value-out-of-range #:value-out-of-range-operation
+      #:value-out-of-range-value #:value-out-of-range-low
+      #:value-out-of-range-high #:align-up #:serialize-uint32-le
+      #:serialize-uint64-le #:with-output-to-vector #:with-byte-buffer
+      #:binary-buffer-pad-and-write #:buffer-pad-to
+  )
+  (:import-from #:cl-cc/binary/macho
+      #:macho-codesign-error #:macho-codesign-error-filename
+      #:macho-codesign-error-reason #:macho-unknown-architecture
+      #:macho-unknown-architecture-arch #:+mh-magic-64+ #:+fat-magic+
+      #:+fat-cputype-x86-64+ #:+fat-cputype-arm64+ #:+cpu-type-x86-64+
+      #:+cpu-type-arm64+ #:+cpu-subtype-x86-64-all+ #:+cpu-subtype-arm64-all+
+      #:+mh-execute+ #:+lc-segment-64+ #:+lc-symtab+ #:+lc-load-dylib+
+      #:+lc-code-signature+ #:+lc-dyld-info-only+ #:+lc-main+ #:+mh-noundefs+
+      #:+mh-dyldlink+ #:+mh-pie+ #:+s-attr-pure-instructions+
+      #:+s-attr-some-instructions+ #:+compact-unwind-encoding-none+
+      #:+compact-unwind-x86-64-mode-stack-immd+ #:+x86-64-reloc-unsigned+
+      #:+x86-64-reloc-signed+ #:+x86-64-reloc-branch+ #:+x86-64-reloc-got-load+
+      #:+arm64-reloc-unsigned+ #:+arm64-reloc-branch26+ #:+arm64-reloc-page21+
+      #:+arm64-reloc-pageoff12+ #:mach-header #:segment-command #:section
+      #:symtab-command #:dysymtab-command #:dyld-info-command #:dylib-command
+      #:linkedit-data-command #:relocation-info #:entry-point-command #:nlist
+      #:mach-o-fat-slice #:make-mach-o-fat-slice #:mach-o-fat-slice-cputype
+      #:mach-o-fat-slice-cpusubtype #:mach-o-fat-slice-align
+      #:mach-o-fat-slice-bytes #:mach-header-magic #:mach-header-cputype
+      #:mach-header-cpusubtype #:mach-header-filetype #:mach-header-ncmds
+      #:mach-header-sizeofcmds #:mach-header-flags #:mach-header-reserved
+      #:segment-command-cmd #:segment-command-cmdsize #:segment-command-segname
+      #:segment-command-vmaddr #:segment-command-vmsize #:segment-command-fileoff
+      #:segment-command-filesize #:segment-command-maxprot
+      #:segment-command-initprot #:segment-command-nsects #:segment-command-flags
+      #:segment-command-sections #:section-sectname #:section-segname
+      #:section-addr #:section-size #:section-offset #:section-align
+      #:section-reloff #:section-nreloc #:section-flags #:section-reserved1
+      #:section-reserved2 #:section-reserved3 #:relocation-info-r-address
+      #:relocation-info-r-symbolnum #:relocation-info-r-pcrel
+      #:relocation-info-r-length #:relocation-info-r-extern
+      #:relocation-info-r-type #:entry-point-command-cmd
+      #:entry-point-command-cmdsize #:entry-point-command-entryoff
+      #:entry-point-command-stacksize #:mach-o-builder #:make-mach-o-builder
+      #:add-text-segment #:add-data-segment #:add-data-const-segment #:add-symbol
+      #:add-relocation #:add-entry-point #:build-mach-o #:write-mach-o-file
+      #:build-mach-o-fat-binary #:write-mach-o-fat-file #:*binary-logger*
+  )
+  (:import-from #:cl-cc/binary/elf
+      #:elf-wx-violation #:elf-wx-violation-segment
+      #:compile-to-elf64 #:elf64-add-rodata-bytes #:elf64-add-rodata-string
+      #:elf64-add-got-entry #:elf64-add-plt-stub #:elf64-verify-wx
+      #:build-dwo-file #:compile-to-elf64-exec #:make-elf64-executable
+      #:elf64-add-load-segment #:elf64-add-gnu-stack-segment
+      #:elf64-add-gnu-relro-segment #:write-elf64-file
+  )
+  (:import-from #:cl-cc/binary/dwarf
+      #:build-dwarf-debug-sections #:build-dwarf-skeleton-cu
+      #:build-gnu-debuglink-section #:dwarf-crc32 #:build-dwarf-eh-frame
+      #:make-dwarf-eh-fde #:dwarf-eh-fde-lsda #:dwarf-eh-fde-personality
+      #:make-dwarf-eh-call-site #:dwarf-eh-call-site-start
+      #:dwarf-eh-call-site-length #:dwarf-eh-call-site-landing-pad
+      #:dwarf-eh-call-site-action #:dwarf-eh-call-site-type #:build-dwarf-eh-lsda
+  )
+  (:import-from #:cl-cc/binary/linking
+      #:patchable-entry-overflow #:patchable-entry-overflow-size
+      #:patchable-entry-overflow-reserved #:*icf-enabled*
+      #:icf-merge-identical-functions
+  )
+  (:import-from #:cl-cc/binary/pe
+      #:+pe-machine-amd64+ #:+pe-machine-arm64+ #:+pe-magic-pe32-plus+
+      #:+pe-section-alignment+ #:+pe-file-alignment+ #:pe-builder #:pe-section
+      #:pe-import #:pe-export #:pe-section-not-found #:pe-section-not-found-name
+      #:make-pe32+-builder #:pe-add-text-bytes #:pe-add-rdata-bytes
+      #:pe-add-data-bytes #:pe-add-import #:pe-add-export
+      #:pe-add-base-relocation #:pe-finalize #:compile-to-pe #:write-pe-file
+      #:*pe-x86-64-argument-registers* #:+pe-x86-64-shadow-space-size+
+      #:pe-x86-64-stack-adjustment
+  )
+  (:export
+   ;; Conditions
+   #:cl-cc-binary-error
+   #:macho-codesign-error
+   #:macho-codesign-error-filename
+   #:macho-codesign-error-reason
+   #:value-out-of-range
+   #:value-out-of-range-operation
+   #:value-out-of-range-value
+   #:value-out-of-range-low
+   #:value-out-of-range-high
+   #:elf-wx-violation
+   #:elf-wx-violation-segment
+   #:patchable-entry-overflow
+   #:patchable-entry-overflow-size
+   #:patchable-entry-overflow-reserved
+   #:pe-section-not-found
+   #:pe-section-not-found-name
+   #:macho-unknown-architecture
+   #:macho-unknown-architecture-arch
+
+   ;; Mach-O constants
+   #:+mh-magic-64+
+   #:+fat-magic+
+   #:+fat-cputype-x86-64+
+   #:+fat-cputype-arm64+
+   #:+cpu-type-x86-64+
+   #:+cpu-type-arm64+
+   #:+cpu-subtype-x86-64-all+
+   #:+cpu-subtype-arm64-all+
+   #:+mh-execute+
+   #:+lc-segment-64+
+    #:+lc-symtab+
+    #:+lc-load-dylib+
+    #:+lc-code-signature+
+    #:+lc-dyld-info-only+
+    #:+lc-main+
+   #:+mh-noundefs+
+   #:+mh-dyldlink+
+   #:+mh-pie+
+    #:+s-attr-pure-instructions+
+    #:+s-attr-some-instructions+
+     #:+compact-unwind-encoding-none+
+     #:+compact-unwind-x86-64-mode-stack-immd+
+     #:+x86-64-reloc-unsigned+
+     #:+x86-64-reloc-signed+
+     #:+x86-64-reloc-branch+
+     #:+x86-64-reloc-got-load+
+     #:+arm64-reloc-unsigned+
+     #:+arm64-reloc-branch26+
+     #:+arm64-reloc-page21+
+     #:+arm64-reloc-pageoff12+
+
+   ;; Structures
+   #:mach-header
+   #:segment-command
+   #:section
+    #:symtab-command
+    #:dysymtab-command
+    #:dyld-info-command
+    #:dylib-command
+    #:linkedit-data-command
+    #:relocation-info
+    #:entry-point-command
+   #:nlist
+   #:mach-o-fat-slice
+   #:make-mach-o-fat-slice
+   #:mach-o-fat-slice-cputype
+   #:mach-o-fat-slice-cpusubtype
+   #:mach-o-fat-slice-align
+   #:mach-o-fat-slice-bytes
+
+   ;; Accessors
+   #:mach-header-magic
+   #:mach-header-cputype
+   #:mach-header-cpusubtype
+   #:mach-header-filetype
+   #:mach-header-ncmds
+   #:mach-header-sizeofcmds
+   #:mach-header-flags
+   #:mach-header-reserved
+   #:segment-command-cmd
+   #:segment-command-cmdsize
+   #:segment-command-segname
+   #:segment-command-vmaddr
+   #:segment-command-vmsize
+   #:segment-command-fileoff
+   #:segment-command-filesize
+   #:segment-command-maxprot
+   #:segment-command-initprot
+   #:segment-command-nsects
+   #:segment-command-flags
+   #:segment-command-sections
+   #:section-sectname
+   #:section-segname
+   #:section-addr
+   #:section-size
+   #:section-offset
+   #:section-align
+   #:section-reloff
+   #:section-nreloc
+   #:section-flags
+   #:section-reserved1
+    #:section-reserved2
+    #:section-reserved3
+    #:relocation-info-r-address
+    #:relocation-info-r-symbolnum
+    #:relocation-info-r-pcrel
+    #:relocation-info-r-length
+    #:relocation-info-r-extern
+    #:relocation-info-r-type
+    #:entry-point-command-cmd
+   #:entry-point-command-cmdsize
+   #:entry-point-command-entryoff
+   #:entry-point-command-stacksize
+
+   ;; Builder
+   #:mach-o-builder
+   #:make-mach-o-builder
+    #:add-text-segment
+    #:add-data-segment
+     #:add-data-const-segment
+     #:add-symbol
+     #:add-relocation
+    #:add-entry-point
+   #:build-mach-o
+   #:write-mach-o-file
+   #:build-mach-o-fat-binary
+   #:write-mach-o-fat-file
+   #:*binary-logger*
+
+   ;; Utilities
+   #:align-up
+   #:serialize-uint32-le
+   #:serialize-uint64-le
+   #:with-output-to-vector
+   #:with-byte-buffer
+   #:binary-buffer-pad-and-write
+   #:buffer-pad-to
+
+   ;; ELF64 backend
+     #:compile-to-elf64
+     #:elf64-add-rodata-bytes
+     #:elf64-add-rodata-string
+     #:elf64-add-got-entry
+     #:elf64-add-plt-stub
+     #:elf64-verify-wx
+     #:*icf-enabled*
+     #:icf-merge-identical-functions
+      #:build-dwarf-debug-sections
+      #:build-dwarf-skeleton-cu
+      #:build-dwo-file
+      #:build-gnu-debuglink-section
+      #:dwarf-crc32
+       #:build-dwarf-eh-frame
+       #:make-dwarf-eh-fde
+       #:dwarf-eh-fde-lsda
+       #:dwarf-eh-fde-personality
+       #:make-dwarf-eh-call-site
+       #:dwarf-eh-call-site-start
+       #:dwarf-eh-call-site-length
+       #:dwarf-eh-call-site-landing-pad
+       #:dwarf-eh-call-site-action
+       #:dwarf-eh-call-site-type
+       #:build-dwarf-eh-lsda
+       #:compile-to-elf64-exec
+    #:make-elf64-executable
+    #:elf64-add-load-segment
+    #:elf64-add-gnu-stack-segment
+    #:elf64-add-gnu-relro-segment
+    #:write-elf64-file
+
+    ;; PE/COFF backend
+    #:+pe-machine-amd64+
+    #:+pe-machine-arm64+
+    #:+pe-magic-pe32-plus+
+    #:+pe-section-alignment+
+    #:+pe-file-alignment+
+    #:pe-builder
+    #:pe-section
+    #:pe-import
+    #:pe-export
+    #:make-pe32+-builder
+    #:pe-add-text-bytes
+    #:pe-add-rdata-bytes
+    #:pe-add-data-bytes
+    #:pe-add-import
+    #:pe-add-export
+    #:pe-add-base-relocation
+    #:pe-finalize
+    #:compile-to-pe
+    #:write-pe-file
+    #:*pe-x86-64-argument-registers*
+    #:+pe-x86-64-shadow-space-size+
+    #:pe-x86-64-stack-adjustment))
