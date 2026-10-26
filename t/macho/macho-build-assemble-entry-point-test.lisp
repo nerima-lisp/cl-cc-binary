@@ -113,3 +113,12 @@
                               (expect (<= (+ (%macho-u64le image (+ segment 40))
                                              (%macho-u64le image (+ segment 48)))
                                           (%macho-u64le image (+ other 40))) :to-be t)))))))))
+(describe "Mach-O public facade exports"
+  (it "exposes the file writer and builder entry points"
+    (dolist (name (list "WRITE-MACH-O-FILE"
+                        "BUILD-MACH-O"
+                        "MAKE-MACH-O-BUILDER"))
+      (multiple-value-bind (symbol status)
+          (find-symbol name "CL-CC/BINARY")
+        (expect (and symbol (eq status :external) (fboundp symbol))
+                :to-be-truthy)))))
