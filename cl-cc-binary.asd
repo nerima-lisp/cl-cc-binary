@@ -52,7 +52,7 @@ cl-cc package."
    (:module "pe" :pathname "pe" :serial t :components
   ((:file "package") (:file "pe") (:file "pe-tables") (:file "pe-finalize")))
    (:module "wasm" :pathname "wasm" :serial t :components
-  ((:file "package") (:file "wasm")))
+  ((:file "package") (:file "wasm") (:file "wasm-module")))
    (:file "facade-package"))
   :in-order-to ((test-op (test-op "cl-cc-binary/test"))))
 
@@ -95,7 +95,7 @@ cl-cc package."
    (:module "pe" :pathname "pe" :serial t :components
   ((:file "package") (:file "pe-finalize-test")))
    (:module "wasm" :pathname "wasm" :serial t :components
-  ((:file "package") (:file "wasm-test"))))
+  ((:file "package") (:file "wasm-test") (:file "wasm-module-test"))))
   :perform (test-op (op system)
              (declare (ignore op system))
              (unless (uiop:symbol-call :cl-weave :run-all

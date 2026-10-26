@@ -15,6 +15,7 @@
 
 (defun encode-uleb128 (value)
   "Encode VALUE as an unsigned LEB128 byte sequence. Returns a list of bytes."
+  (check-type value (integer 0 *))
   (let ((bytes nil))
     (loop
       (let ((byte (logand value #x7f)))
@@ -26,6 +27,7 @@
 
 (defun encode-sleb128 (value)
   "Encode VALUE as a signed LEB128 byte sequence. Returns a list of bytes."
+  (check-type value integer)
   (let ((bytes nil)
         (more t))
     (loop while more do
