@@ -32,7 +32,7 @@
 ;;;; rather than block `nix flake check` on an environment restriction this
 ;;;; test cannot do anything about.
 
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/macho/test)
 
 (defun %macho-arm64-exit-stub (code)
   "Twelve bytes of ARM64: mov x0, CODE / mov x16, #1 (SYS_exit) / svc #0x80.
@@ -55,12 +55,12 @@ ARMv8 instruction-set reference."
                   (not (uiop:getenv "NIX_BUILD_TOP")))
       "runs the produced Mach-O and observes the exit code its own code requested"
     (let* ((code (%macho-arm64-exit-stub 42))
-           (builder (cl-cc/binary:make-mach-o-builder :arm64)))
-      (cl-cc/binary:add-text-segment builder code)
-      (cl-cc/binary:add-entry-point builder 0)
-      (let ((image (cl-cc/binary:build-mach-o builder code)))
+           (builder (cl-cc/binary/macho:make-mach-o-builder :arm64)))
+      (cl-cc/binary/macho:add-text-segment builder code)
+      (cl-cc/binary/macho:add-entry-point builder 0)
+      (let ((image (cl-cc/binary/macho:build-mach-o builder code)))
         (uiop:with-temporary-file (:pathname path :keep nil)
-          (cl-cc/binary:write-mach-o-file path image)
+          (cl-cc/binary/macho:write-mach-o-file path image)
           (uiop:run-program (list "chmod" "755" (uiop:native-namestring path)))
           (multiple-value-bind (output error-output exit-code)
               (uiop:run-program (list (uiop:native-namestring path))

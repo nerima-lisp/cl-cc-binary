@@ -7,7 +7,7 @@
 ;;;
 ;;; Reference: https://webassembly.github.io/spec/core/binary/index.html
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/wasm)
 
 ;;; ------------------------------------------------------------
 ;;; Section 1: LEB128 Encoding

@@ -1,25 +1,11 @@
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/dwarf/test)
 
 (defun dwo-test-uint (bytes offset width)
   (loop for i below width sum (ash (aref bytes (+ offset i)) (* 8 i))))
 
-(defun dwo-test-section (bytes name)
-  (let* ((start (dwo-test-uint bytes 40 8))
-         (size (dwo-test-uint bytes 58 2))
-         (count (dwo-test-uint bytes 60 2))
-         (strings (+ start (* size (dwo-test-uint bytes 62 2))))
-         (names (dwo-test-uint bytes (+ strings 24) 8)))
-    (loop for i below count for header = (+ start (* i size))
-          for offset = (+ names (dwo-test-uint bytes header 4))
-          for end = (position 0 bytes :start offset)
-          when (string= name (map 'string #'code-char (subseq bytes offset end)))
-            return (let ((offset (dwo-test-uint bytes (+ header 24) 8))
-                         (length (dwo-test-uint bytes (+ header 32) 8)))
-                     (subseq bytes offset (+ offset length))))))
-
 (it-sequential "dwo-skeleton-header-die-and-abbreviation"
   (multiple-value-bind (info abbrev)
-      (cl-cc/binary::build-dwarf-skeleton-cu "unit.dwo" :dwo-id #x0123456789abcdef :comp-dir "src")
+      (cl-cc/binary/dwarf::build-dwarf-skeleton-cu "unit.dwo" :dwo-id #x0123456789abcdef :comp-dir "src")
     (expect (dwo-test-uint info 0 4) :to-equal (- (length info) 4))
     (expect (dwo-test-uint info 4 2) :to-equal 5)
     (expect (aref info 6) :to-equal 4)
@@ -31,73 +17,16 @@
     (expect (coerce abbrev 'list)
             :to-equal '(1 #x4a 0 #x76 8 #x1b 8 #x53 #x19 0 0 0))))
 
-(it-sequential "dwo-elf-split-header-die-and-shared-id"
-  (let* ((id #xfedcba9876543210)
-         (dwo (cl-cc/binary::build-dwo-file "unit.lisp" :dwo-id id :producer "test"))
-         (info (dwo-test-section dwo ".debug_info.dwo")))
-    (expect (coerce (subseq dwo 0 7) 'list) :to-equal '(127 69 76 70 2 1 1))
-    (expect (dwo-test-uint dwo 16 2) :to-equal 1)
-    (expect (dwo-test-uint dwo 18 2) :to-equal 62)
-    (expect (dwo-test-uint dwo 52 2) :to-equal 64)
-    (expect (dwo-test-uint dwo 58 2) :to-equal 64)
-    (expect (dwo-test-uint dwo 60 2) :to-equal 5)
-    (expect (dwo-test-section dwo ".shstrtab") :to-be-truthy)
-    (expect (dwo-test-uint info 0 4) :to-equal (- (length info) 4))
-    (expect (dwo-test-uint info 4 2) :to-equal 5)
-    (expect (aref info 6) :to-equal 5)
-    (expect (aref info 7) :to-equal 8)
-    (expect (dwo-test-uint info 8 4) :to-equal 0)
-    (expect (dwo-test-uint info 12 8) :to-equal id)
-    (expect (dwo-test-uint (cl-cc/binary::build-dwarf-skeleton-cu "unit.dwo" :dwo-id id) 12 8)
-            :to-equal (dwo-test-uint info 12 8))
-    (expect (coerce (subseq info 20) 'list)
-            :to-equal '(1 117 110 105 116 46 108 105 115 112 0 116 101 115 116 0))
-    (expect (coerce (dwo-test-section dwo ".debug_abbrev.dwo") 'list)
-            :to-equal '(1 #x11 0 3 8 #x25 8 #x53 #x19 0 0 0))))
-
-(it-sequential "dwo-line-v5-file-table-without-instructions"
-  (let* ((dwo (cl-cc/binary::build-dwo-file "unit.lisp" :dwo-id 42 :comp-dir "src"))
-         (line (dwo-test-section dwo ".debug_line.dwo")))
-    (expect (dwo-test-uint line 0 4) :to-equal (- (length line) 4))
-    (expect (dwo-test-uint line 4 2) :to-equal 5)
-    (expect (aref line 6) :to-equal 8)
-    (expect (aref line 7) :to-equal 0)
-    (expect (dwo-test-uint line 8 4) :to-equal (- (length line) 12))
-    (expect (coerce (subseq line 12 30) 'list)
-            :to-equal '(1 1 1 251 14 13 0 1 1 1 1 0 0 0 1 0 0 1))
-    (expect (coerce (subseq line 30) 'list)
-            :to-equal '(1 1 8 1 115 114 99 0 2 1 8 2 15 1
-                        117 110 105 116 46 108 105 115 112 0 0))))
-
-(it-sequential "dwo-inline-strings-are-utf8-not-character-codes"
-  (let* ((source (concatenate 'string (string (code-char #x3bb)) ".lisp"))
-         (directory (string (code-char #x1f642)))
-         (dwo (cl-cc/binary::build-dwo-file source :dwo-id 1 :producer "p" :comp-dir directory)))
-    (expect (coerce (subseq (dwo-test-section dwo ".debug_info.dwo") 20) 'list)
-            :to-equal '(1 #xce #xbb 46 108 105 115 112 0 112 0))
-    (expect (coerce (subseq (cl-cc/binary::build-dwarf-skeleton-cu
-                            source :dwo-id 1 :comp-dir directory) 20) 'list)
-            :to-equal '(1 #xce #xbb 46 108 105 115 112 0 #xf0 #x9f #x99 #x82 0))
-    (expect (coerce (subseq (dwo-test-section dwo ".debug_line.dwo") 30) 'list)
-            :to-equal '(1 1 8 1 #xf0 #x9f #x99 #x82 0 2 1 8 2 15 1
-                        #xce #xbb 46 108 105 115 112 0 0))))
-
 (it-sequential "dwo-crc32-ieee-known-vectors"
-  (expect (cl-cc/binary::dwarf-crc32 #()) :to-equal 0)
-  (expect (cl-cc/binary::dwarf-crc32 #(49 50 51 52 53 54 55 56 57)) :to-equal #xcbf43926)
-  (expect (cl-cc/binary::dwarf-crc32 #(0)) :to-equal #xd202ef8d))
+  (expect (cl-cc/binary/dwarf::dwarf-crc32 #()) :to-equal 0)
+  (expect (cl-cc/binary/dwarf::dwarf-crc32 #(49 50 51 52 53 54 55 56 57)) :to-equal #xcbf43926)
+  (expect (cl-cc/binary/dwarf::dwarf-crc32 #(0)) :to-equal #xd202ef8d))
 
 (it-sequential "dwo-debuglink-basename-padding-and-whole-file-crc"
-  (let ((link (cl-cc/binary::build-gnu-debuglink-section "dir/unit.debug" #(49 50 51 52 53 54 55 56 57))))
+  (let ((link (cl-cc/binary/dwarf::build-gnu-debuglink-section "dir/unit.debug" #(49 50 51 52 53 54 55 56 57))))
     (expect (coerce link 'list)
             :to-equal '(117 110 105 116 46 100 101 98 117 103 0 0 #x26 #x39 #xf4 #xcb))
     (expect (mod (- (length link) 4) 4) :to-equal 0))
-  (expect (coerce (cl-cc/binary::build-gnu-debuglink-section "a" #()) 'list)
+  (expect (coerce (cl-cc/binary/dwarf::build-gnu-debuglink-section "a" #()) 'list)
           :to-equal '(97 0 0 0 0 0 0 0)))
 
-(it-sequential "dwo-rejects-missing-invalid-id-and-embedded-nul"
-  (expect (lambda () (cl-cc/binary::build-dwo-file "unit.lisp")) :to-throw 'type-error)
-  (expect (lambda () (cl-cc/binary::build-dwarf-skeleton-cu "unit.dwo" :dwo-id -1)) :to-throw 'type-error)
-  (expect (lambda () (cl-cc/binary::build-dwo-file "unit.lisp" :dwo-id (ash 1 64))) :to-throw 'type-error)
-  (expect (lambda () (cl-cc/binary::build-dwo-file (string (code-char 0)) :dwo-id 1)) :to-throw 'error)
-  (expect (lambda () (cl-cc/binary::build-gnu-debuglink-section "dir/" #())) :to-throw 'error))

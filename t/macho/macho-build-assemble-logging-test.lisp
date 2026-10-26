@@ -3,13 +3,12 @@
 ;;;; %macho-log-codesign-outcome retains structured success diagnostics while
 ;;;; write-mach-o-file propagates timeout and nonzero-exit failures.
 
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/macho/test)
 
 (defun %captured-log-records (thunk)
-  "Run THUNK with cl-cc/binary:*binary-logger* bound to a logger whose
-records are captured into a list, and return that list (oldest first)."
+  "Run THUNK with cl-cc/binary/macho:*binary-logger* bound to a capturing logger, and return captured records oldest first."
   (let ((captured nil))
-    (let ((cl-cc/binary:*binary-logger*
+    (let ((cl-cc/binary/macho:*binary-logger*
             (log-kit:make-logger
              :handler (log-kit:make-function-handler
                        (lambda (record) (push record captured))))))
@@ -19,21 +18,21 @@ records are captured into a list, and return that list (oldest first)."
 (describe "*binary-logger* structured diagnostics"
 
   (it "defaults to nil, keeping the library silent"
-    (expect cl-cc/binary:*binary-logger* :to-be-null))
+    (expect cl-cc/binary/macho:*binary-logger* :to-be-null))
 
   (it "logs nothing for :ok"
     (let ((records (%captured-log-records
-                    (lambda () (cl-cc/binary::%macho-log-codesign-outcome :ok "/tmp/example.bin")))))
+                    (lambda () (cl-cc/binary/macho::%macho-log-codesign-outcome :ok "/tmp/example.bin")))))
       (expect records :to-equal nil)))
 
   (it "logs nothing when no logger is bound"
-    (let ((cl-cc/binary:*binary-logger* nil))
-      (expect (cl-cc/binary::%macho-log-codesign-outcome :timeout "/tmp/example.bin")
+    (let ((cl-cc/binary/macho:*binary-logger* nil))
+      (expect (cl-cc/binary/macho::%macho-log-codesign-outcome :timeout "/tmp/example.bin")
               :to-be-null)))
 
   (it "logs a timeout warning naming the file and configured timeout"
     (let ((records (%captured-log-records
-                    (lambda () (cl-cc/binary::%macho-log-codesign-outcome
+                    (lambda () (cl-cc/binary/macho::%macho-log-codesign-outcome
                                 :timeout "/tmp/example.bin")))))
       (expect (length records) :to-be 1)
       (expect (log-kit:log-record-message (first records)) :to-match "codesign timed out")
@@ -42,7 +41,7 @@ records are captured into a list, and return that list (oldest first)."
 
   (it "logs an error warning with the condition's printed reason"
     (let ((records (%captured-log-records
-                    (lambda () (cl-cc/binary::%macho-log-codesign-outcome
+                    (lambda () (cl-cc/binary/macho::%macho-log-codesign-outcome
                                 :error "/tmp/example.bin"
                                 :condition (make-condition 'simple-error
                                                            :format-control "boom"))))))
@@ -66,11 +65,11 @@ records are captured into a list, and return that list (oldest first)."
     (let ((bytes (make-array 1 :element-type '(unsigned-byte 8)
                              :initial-element 0)))
       (%with-replaced-function
-       'cl-cc/binary::%macho-codesign-program
+       'cl-cc/binary/macho::%macho-codesign-program
        (lambda () #P"/tmp/codesign")
        (lambda ()
          (%with-replaced-function
-          'cl-cc/binary::%macho-codesign-cps
+          'cl-cc/binary/macho::%macho-codesign-cps
           (lambda (program staged on-ok on-timeout on-error)
             (declare (ignore program staged on-ok))
             (ecase mode
@@ -80,8 +79,8 @@ records are captured into a list, and return that list (oldest first)."
                                         :format-control "injected failure")))
               (:timeout (funcall on-timeout))))
           (lambda ()
-            (signals cl-cc/binary:macho-codesign-error
-              (cl-cc/binary:write-mach-o-file path bytes :codesign t))))))
+            (signals cl-cc/binary/macho:macho-codesign-error
+              (cl-cc/binary/macho:write-mach-o-file path bytes :codesign t))))))
       (with-open-file (in path)
         (expect (read-line in) :to-equal "original")))))
 

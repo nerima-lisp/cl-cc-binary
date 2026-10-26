@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/dwarf)
 
 (defun %dwo-write-string (buffer string)
   (check-type string string)
@@ -70,58 +70,6 @@ ranges, child DIEs or compiler integration. DWO-NAME is a lookup filename."
       (binary-buffer-write-u8 buffer 0)
       (binary-buffer-write-u32le buffer (length header))
       (binary-buffer-write-bytes buffer header))))
-
-(defun %dwo-elf64 (sections)
-  ;; The ordinary ELF builder owns code/symbol sections. This container only
-  ;; lays out the named, non-allocated metadata sections supplied here.
-  (let* ((strings (make-strtab))
-         (name-offsets (mapcar (lambda (section) (strtab-add strings (car section))) sections))
-         (strings-name (strtab-add strings ".shstrtab"))
-         (payloads (append (mapcar #'cdr sections) (list (strtab-bytes strings))))
-         (offset 64)
-         (offsets (mapcar (lambda (bytes) (prog1 offset (incf offset (length bytes)))) payloads))
-         (shoff (align-up offset 8))
-         (count (+ 2 (length sections))))
-    (with-byte-buffer (buffer)
-      (binary-buffer-write-bytes buffer '(#x7f #x45 #x4c #x46 2 1 1 0 0))
-      (binary-buffer-write-pad buffer 7)
-      (binary-buffer-write-u16le buffer +elf-type-rel+)
-      (binary-buffer-write-u16le buffer +elf-machine-x86-64+)
-      (binary-buffer-write-u32le buffer +elf-version-cur+)
-      (binary-buffer-write-u64le buffer 0)
-      (binary-buffer-write-u64le buffer 0)
-      (binary-buffer-write-u64le buffer shoff)
-      (binary-buffer-write-u32le buffer 0)
-      (binary-buffer-write-u16le buffer 64)
-      (binary-buffer-write-u16le buffer 0)
-      (binary-buffer-write-u16le buffer 0)
-      (binary-buffer-write-u16le buffer 64)
-      (binary-buffer-write-u16le buffer count)
-      (binary-buffer-write-u16le buffer (1- count))
-      (dolist (bytes payloads) (binary-buffer-write-bytes buffer bytes))
-      (binary-buffer-write-pad buffer (- shoff (length buffer)))
-      (binary-buffer-write-pad buffer 64)
-      (loop for bytes in payloads for position in offsets
-            for name in (append name-offsets (list strings-name))
-            for index from 1 do
-        (elf64-write-shdr buffer name
-                          (if (= index (1- count)) +sht-strtab+ +sht-progbits+)
-                          0 position (length bytes) 0 0 1 0)))))
-
-(defun build-dwo-file (source-name &key dwo-id (producer "cl-cc") (comp-dir "."))
-  "Return a little-endian x86-64 ELF64 ET_REL metadata-only DWO file.
-DWO-ID must match the skeleton's ID. The split CU has no child DIEs or code
-mapping; its v5 line section contains a file table, not line instructions."
-  (let ((info (%dwo-unit 5 dwo-id
-                         (with-byte-buffer (die)
-                           (binary-buffer-write-u8 die 1)
-                           (%dwo-write-string die source-name)
-                           (%dwo-write-string die producer))))
-        (abbrev (make-array 12 :element-type '(unsigned-byte 8)
-                            :initial-contents '(1 #x11 0 3 8 #x25 8 #x53 #x19 0 0 0))))
-    (%dwo-elf64 (list (cons ".debug_info.dwo" info)
-                      (cons ".debug_abbrev.dwo" abbrev)
-                      (cons ".debug_line.dwo" (%dwo-line-table source-name comp-dir))))))
 
 (defun dwarf-crc32 (bytes)
   (let ((crc #xffffffff))

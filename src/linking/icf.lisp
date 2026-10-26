@@ -1,6 +1,6 @@
 ;;;; packages/binary/src/icf.lisp — FR-607 Identical Code Folding helpers
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/linking)
 
 (defparameter *icf-enabled* nil
   "When true, identical function-sized code sections may be folded by ICF.")

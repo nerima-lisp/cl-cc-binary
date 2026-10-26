@@ -10,7 +10,7 @@
 ;;; Load order: after emit/binary/macho-serialize.lisp.
 ;;; (mach-o-builder class defined in macho-serialize.lisp;
 ;;;  constants, structs, buffer helpers, serialization primitives in macho.lisp)
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defvar *macho-page-size* #x1000)
 

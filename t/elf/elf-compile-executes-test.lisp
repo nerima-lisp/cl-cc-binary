@@ -28,7 +28,7 @@
 ;;;; Mach-O, Nix's sandbox is expected to deny process-exec for a binary
 ;;;; the derivation just produced on Linux too.
 
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/elf/test)
 
 (defun %elf-exit-stub-x86-64 (code)
   "mov edi, CODE / mov eax, 60 (SYS_exit) / syscall — the same shape as the
@@ -65,7 +65,7 @@ here, rather than hand-encoded from the ARMv8 instruction-set reference."
            (code (ecase arch
                    (:arm64 (%elf-exit-stub-arm64 42))
                    (:x86-64 (%elf-exit-stub-x86-64 42))))
-           (bytes (cl-cc/binary:compile-to-elf64-exec code nil :arch arch :type :exec)))
+           (bytes (cl-cc/binary/elf:compile-to-elf64-exec code nil :arch arch :type :exec)))
       (uiop:with-temporary-file (:pathname path :keep nil)
         (with-open-file (out path :direction :output :if-exists :supersede
                                   :element-type '(unsigned-byte 8))

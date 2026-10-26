@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defun macho-build-unwind-info (code-size &key
                                             (encoding +compact-unwind-x86-64-mode-stack-immd+)

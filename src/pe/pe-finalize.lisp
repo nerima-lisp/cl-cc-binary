@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/pe)
 
 ;;; ------------------------------------------------------------
 ;;; Headers and final image assembly

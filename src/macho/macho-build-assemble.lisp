@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defun build-mach-o (builder code-bytes &key compress)
   "Build complete Mach-O executable from BUILDER and CODE-BYTES.

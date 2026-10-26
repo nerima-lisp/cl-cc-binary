@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defun %build-macho-command-sizes (user-segments has-symbols)
   "Return an alist of command-size components for the Mach-O load command area.

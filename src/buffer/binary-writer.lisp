@@ -7,7 +7,7 @@
 ;;;; headers, PE COFF headers, and similar records assembled directly from
 ;;;; caller-supplied values rather than struct slots.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/buffer)
 
 (defun %binary-writer-field-form (width buffer-var value)
   (ecase width

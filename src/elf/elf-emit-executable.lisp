@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/elf)
 
 (defun elf64-string-bytes (string &key (nul t))
   "Return STRING as ASCII bytes, optionally NUL terminated."

@@ -1,7 +1,7 @@
-;;;; t/package.lisp — cl-cc-binary test package.
+;;;; t/buffer/package.lisp — Buffer test package.
+(defpackage #:cl-cc/binary/buffer/test
+            (:use #:cl #:cl-weave #:cl-cc/binary/buffer)
+            (:shadowing-import-from #:cl-weave #:describe)
+            (:export #:%read-u16le #:%read-u32le #:%read-u64le #:%read-c-string))
 
-(defpackage #:cl-cc-binary/test
-  (:use #:cl #:cl-weave #:cl-cc/binary)
-  (:shadowing-import-from #:cl-weave #:describe))
-
-(in-package #:cl-cc-binary/test)
+(in-package #:cl-cc/binary/buffer/test)

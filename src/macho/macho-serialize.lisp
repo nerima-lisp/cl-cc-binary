@@ -9,7 +9,7 @@
 ;;;
 ;;; Load order: after emit/binary/macho.lisp, before emit/binary/macho-build.lisp.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 ;;; Structures And Their Serializers
 ;;;

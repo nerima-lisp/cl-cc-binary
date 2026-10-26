@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defun %serialize-macho-commands (buffer builder user-segments linkedit-seg
                                    has-symbols symoff nsyms stroff strsize

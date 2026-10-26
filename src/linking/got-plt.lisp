@@ -17,11 +17,15 @@
 ;;;;   GOT[2] = _dl_runtime_resolve (filled by ld.so)
 ;;;;   GOT[3+] = per-symbol resolved addresses (filled lazily)
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/linking)
 
 ;;; ------------------------------------------------------------
 ;;; add-plt-stubs  — generate .plt section bytes
 ;;; ------------------------------------------------------------
+
+(defconstant +r-x86-64-jump-slot+ 7)
+
+(defconstant +df-bind-now+ #x8)
 
 (defun add-plt-stubs (symbol-names)
   "Generate PLT section bytes for SYMBOL-NAMES (list of strings).
@@ -94,3 +98,4 @@ Returns (values plt-bytes got-plt-bytes rela-plt-bytes bind-now-flag)."
           (add-got-entries (length symbol-names))
           (add-dynamic-relocations symbol-names got-plt-addr)
           (bind-now-mode)))
+

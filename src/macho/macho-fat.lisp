@@ -1,6 +1,6 @@
 ;;;; packages/binary/src/macho-fat.lisp — FR-691 Mach-O universal/fat binaries
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defconstant +fat-magic+ #xCAFEBABE
   "Mach-O FAT_MAGIC universal binary magic number (big-endian).")

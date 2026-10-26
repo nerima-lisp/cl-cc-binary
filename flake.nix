@@ -69,6 +69,13 @@
       flake = false;
     };
 
+    # Static feature-boundary and test-registration checks.
+    cl-nix-forge = {
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.4";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -87,6 +94,7 @@
       cl-codec-kit,
       cl-boundary-kit,
       cl-weave,
+      cl-nix-forge,
       treefmt-nix,
       ...
     }:
@@ -269,6 +277,19 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          cl = cl-nix-forge.lib.${system};
+          sourceInclude = [
+            ./docs
+            ./nix/feature-dependencies.sexp
+            ./nix/legacy-internal-refs.sexp
+            ./t/export-surface.txt
+          ];
+          featureLintSource = builtins.toString (
+            cl.mkLispSource {
+              root = ./.;
+              include = sourceInclude;
+            }
+          );
         in
         {
           # The cl-weave suite. `sbcl --script` and nothing before it: SBCL
@@ -291,50 +312,41 @@
                 touch "$out/passed"
               '';
 
-          orphan-tests =
-            pkgs.runCommand "cl-cc-binary-orphan-tests"
-              {
-                nativeBuildInputs = [ pkgs.python3 ];
-              }
-              ''
-                python - ${self}/cl-cc-binary.asd ${self}/t <<'PY'
-                import pathlib
-                import re
-                import sys
+          feature-lint = cl.mkFeatureLintCheck {
+            src = featureLintSource;
+            featureDefinitions = "nix/feature-dependencies.sexp";
+            glossary = "docs/src/reference/glossary.md";
+            glossaryHeadingPrefix = "## ";
+            exportSurface = "t/export-surface.txt";
+            mode = "transition";
+            legacyInternalRefs = "nix/legacy-internal-refs.sexp";
+            forbiddenNames = [
+              "phases"
+              "misc"
+              "utils"
+              "helpers"
+            ];
+            numberedPrefixes = [
+              "FR-"
+              "W"
+            ];
+            packagePrefix = "cl-cc/binary/";
+            infraSuffix = "/infra";
+          };
 
-                asd_path, test_root = map(pathlib.Path, sys.argv[1:])
-                source = asd_path.read_text()
-                start = source.find('(defsystem "cl-cc-binary/test"')
-                if start < 0:
-                    raise SystemExit('Missing cl-cc-binary/test system')
-                end = source.find('\n(defsystem "', start + 1)
-                system = source[start:end if end >= 0 else None]
-                components = re.findall(r'\(:file\s+"([^"]+)"\)', system)
-                registered = {
-                    pathlib.PurePosixPath(component).with_suffix("").as_posix()
-                    for component in components
-                }
-                on_disk = {
-                    path.relative_to(test_root).with_suffix("").as_posix()
-                    for path in test_root.rglob("*.lisp")
-                }
-                if not on_disk:
-                    raise SystemExit('No test Lisp files found under t/')
-
-                orphaned = sorted(on_disk - registered)
-                missing = sorted(registered - on_disk)
-                if orphaned:
-                    print("Test files not loaded by cl-cc-binary/test:")
-                    print("\n".join(orphaned), file=sys.stderr)
-                if missing:
-                    print("Test components missing from t/:", file=sys.stderr)
-                    print("\n".join(missing), file=sys.stderr)
-                if orphaned or missing:
-                    raise SystemExit(1)
-                print(f"{len(on_disk)} test Lisp files loaded by cl-cc-binary/test")
-                PY
-                touch "$out"
-              '';
+          orphan-tests = cl.mkOrphanTestCheck {
+            src = featureLintSource;
+            testRoots = [
+              "t/buffer"
+              "t/elf"
+              "t/macho"
+              "t/pe"
+              "t/dwarf"
+              "t/linking"
+              "t/wasm"
+            ];
+            testSystems = [ "cl-cc-binary/test" ];
+          };
 
           # The shipped system compiles and loads without cl-weave present.
           compile = self.packages.${system}.cl-cc-binary;

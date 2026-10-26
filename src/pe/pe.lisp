@@ -6,7 +6,7 @@
 ;;;
 ;;; Pure Common Lisp implementation - no external dependencies.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/pe)
 
 ;;; ------------------------------------------------------------
 ;;; PE/COFF constants
@@ -159,3 +159,10 @@ contract used by native Windows call lowering."
   (let* ((base (+ +pe-x86-64-shadow-space-size+ (* 8 stack-argument-count)))
          (padding (mod (- 16 (mod base 16)) 16)))
     (+ base padding)))
+
+(define-condition pe-section-not-found (cl-cc-binary-error)
+  ((name :initarg :name :reader pe-section-not-found-name))
+  (:report (lambda (condition stream)
+             (format stream "Missing PE section ~A" (pe-section-not-found-name condition))))
+  (:documentation "PE-FINALIZE looked up a section by name that the builder
+never added."))

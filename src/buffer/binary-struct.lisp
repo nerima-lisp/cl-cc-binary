@@ -10,7 +10,7 @@
 ;;;; relocation-info (bitpacked), and nlist (a narrower on-wire n-desc than
 ;;;; its declared slot width) stay hand-written.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/buffer)
 
 (defun %binary-struct-slot-type (width)
   (ecase width

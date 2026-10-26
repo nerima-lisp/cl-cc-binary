@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defparameter *macho-codesign-timeout-seconds* 30
   "Timeout in seconds for the external codesign invocation.

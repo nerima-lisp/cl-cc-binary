@@ -13,7 +13,7 @@
 ;;;; exact image layout: the point is that the path executes and produces a
 ;;;; recognizable Mach-O, not to pin the byte-for-byte output of the assembler.
 
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/macho/test)
 
 (defun %macho-segment-offsets (image)
   (loop with offset = 32
@@ -49,22 +49,22 @@
     (describe (format nil "~a" arch)
       (it "assembles an image with an LC_MAIN entry point"
         (let* ((code (%macho-exit-stub))
-               (builder (cl-cc/binary:make-mach-o-builder arch)))
-          (cl-cc/binary:add-text-segment builder code)
-          (cl-cc/binary:add-entry-point builder 0)
-          (let ((image (cl-cc/binary:build-mach-o builder code)))
+               (builder (cl-cc/binary/macho:make-mach-o-builder arch)))
+          (cl-cc/binary/macho:add-text-segment builder code)
+          (cl-cc/binary/macho:add-entry-point builder 0)
+          (let ((image (cl-cc/binary/macho:build-mach-o builder code)))
             (expect (plusp (length image)))
-            (expect (= (%macho-u32le image 0) cl-cc/binary:+mh-magic-64+))
-            (expect (= (%macho-u32le image 12) cl-cc/binary:+mh-execute+)))))))
+            (expect (= (%macho-u32le image 0) cl-cc/binary/macho:+mh-magic-64+))
+            (expect (= (%macho-u32le image 12) cl-cc/binary/macho:+mh-execute+)))))))
 
   (it "records the entry offset on the builder's LC_MAIN command"
     (let* ((code (%macho-exit-stub))
-           (builder (cl-cc/binary:make-mach-o-builder :x86-64)))
-      (cl-cc/binary:add-text-segment builder code)
-      (cl-cc/binary:add-entry-point builder 0)
-      (cl-cc/binary:build-mach-o builder code)
-      (expect (plusp (cl-cc/binary:entry-point-command-entryoff
-                  (cl-cc/binary::mach-o-builder-entry-point builder)))))))
+           (builder (cl-cc/binary/macho:make-mach-o-builder :x86-64)))
+      (cl-cc/binary/macho:add-text-segment builder code)
+      (cl-cc/binary/macho:add-entry-point builder 0)
+      (cl-cc/binary/macho:build-mach-o builder code)
+      (expect (plusp (cl-cc/binary/macho:entry-point-command-entryoff
+                  (cl-cc/binary/macho::mach-o-builder-entry-point builder)))))))
 
 (describe "Mach-O mapped segment layout"
   (dolist (arch '(:x86-64 :arm64))
@@ -74,16 +74,16 @@
                (code (make-array size :element-type '(unsigned-byte 8) :initial-element #x42))
                (data (make-array 19 :element-type '(unsigned-byte 8) :initial-element #x73))
                (const (make-array 23 :element-type '(unsigned-byte 8) :initial-element #x91))
-               (builder (cl-cc/binary:make-mach-o-builder arch)))
+               (builder (cl-cc/binary/macho:make-mach-o-builder arch)))
           ;; Deliberately add TEXT last: file order must not depend on API call order.
-          (cl-cc/binary:add-data-segment builder data)
-          (when (> size 12) (cl-cc/binary:add-data-const-segment builder const))
-          (cl-cc/binary:add-text-segment builder code)
-          (let* ((image (cl-cc/binary:build-mach-o builder code))
+          (cl-cc/binary/macho:add-data-segment builder data)
+          (when (> size 12) (cl-cc/binary/macho:add-data-const-segment builder const))
+          (cl-cc/binary/macho:add-text-segment builder code)
+          (let* ((image (cl-cc/binary/macho:build-mach-o builder code))
                  (segments (rest (%macho-segment-offsets image)))
                  (text (first segments))
-                 (entry (cl-cc/binary:entry-point-command-entryoff
-                         (cl-cc/binary::mach-o-builder-entry-point builder))))
+                 (entry (cl-cc/binary/macho:entry-point-command-entryoff
+                         (cl-cc/binary/macho::mach-o-builder-entry-point builder))))
             (expect (%macho-segment-name image text) :to-equalp "__TEXT")
             (expect (mod entry page) :to-be 0)
             (expect (subseq image entry (+ entry size)) :to-equalp code)

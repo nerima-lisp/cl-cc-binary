@@ -5,7 +5,7 @@
 ;;;; DWARF call-frame instructions consumed by libunwind/_Unwind_RaiseException;
 ;;;; they are not .debug_frame debug information.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/dwarf)
 
 ;;; DWARF CFI opcodes used by the compact .eh_frame producer.
 (defconstant +dw-cfa-nop+ #x00)
@@ -270,3 +270,67 @@ return-address register RIP (DWARF register 16)."
         (dolist (fde (dwarf-eh-frame-fde-list frame))
           (dwarf-eh-write-fde buf cie-start fde))))))
 
+(in-package :cl-cc/binary/dwarf)
+
+(defun elf64-build-eh-frame-hdr (eh-frame-offset text-size)
+  "Build a compact .eh_frame_hdr with a single binary-search-table FDE row."
+  (declare (ignore text-size))
+  (with-byte-buffer (buf)
+    (elf-buf-u8 buf 1)     ; version
+    (elf-buf-u8 buf #x1b)  ; eh_frame_ptr_enc: DW_EH_PE_pcrel | sdata4
+    (elf-buf-u8 buf #x03)  ; fde_count_enc: DW_EH_PE_udata4
+    (elf-buf-u8 buf #x3b)  ; table_enc: DW_EH_PE_datarel | sdata4
+    (binary-buffer-write-u32le buf eh-frame-offset)
+    (binary-buffer-write-u32le buf 1)
+    ;; initial_location (relative to .eh_frame_hdr base) and FDE pointer.
+    (binary-buffer-write-u32le buf 0)
+    (binary-buffer-write-u32le buf 0)))
+
+(defun elf64-build-eh-frame (text-size)
+  "Build a minimal x86-64 .eh_frame with one CIE and one FDE for .text.
+
+The CIE uses augmentation \"zR\", code alignment 1, data alignment -8,
+return-address register RIP (DWARF register 16), and initial CFA rules for a
+normal call frame: CFA = RSP+8, RIP saved at CFA-8.  The FDE covers the current
+.text range and is intentionally conservative for frameless/RBP-less code."
+  (with-byte-buffer (buf)
+    ;; CIE
+    (let* ((cie-start (length buf))
+           (cie-body
+             (with-byte-buffer (cie-body)
+               (binary-buffer-write-u32le cie-body 0) ; CIE_id
+               (elf-buf-u8 cie-body 1)                ; version
+               (binary-buffer-write-bytes cie-body (map 'vector #'char-code "zR"))
+               (elf-buf-u8 cie-body 0)                ; NUL terminator
+               (elf64-write-uleb128 cie-body 1)       ; code alignment factor
+               (elf64-write-sleb128 cie-body -8)      ; data alignment factor
+               (elf64-write-uleb128 cie-body 16)      ; return address register: RIP
+               (elf64-write-uleb128 cie-body 1)       ; augmentation data length
+               (elf-buf-u8 cie-body #x1b)             ; DW_EH_PE_pcrel | sdata4
+               ;; Initial instructions: DW_CFA_def_cfa rsp,8; DW_CFA_offset rip,1
+               (elf-buf-u8 cie-body #x0c)
+               (elf64-write-uleb128 cie-body 7)
+               (elf64-write-uleb128 cie-body 8)
+               (elf-buf-u8 cie-body #x90)
+               (elf64-write-uleb128 cie-body 1)
+               (elf64-pad-to-align cie-body 8))))
+      (binary-buffer-write-u32le buf (length cie-body))
+      (binary-buffer-write-bytes buf cie-body)
+      ;; FDE. CIE_pointer is the distance from this field back to CIE start.
+      (let* ((fde-start (length buf))
+             (cie-pointer (- (+ fde-start 4) cie-start))
+             (fde-body
+               (with-byte-buffer (fde-body)
+                 (binary-buffer-write-u32le fde-body cie-pointer)
+                 ;; DW_EH_PE_pcrel|sdata4 payload. Relocatable objects leave the encoded
+                 ;; location at zero; the linker can resolve final addresses.
+                 (binary-buffer-write-u32le fde-body 0)
+                 (binary-buffer-write-u32le fde-body text-size)
+                 (elf64-write-uleb128 fde-body 0) ; augmentation data length
+                 ;; Conservative frameless prologue state: CFA remains RSP+8.
+                 (elf-buf-u8 fde-body #x0c)
+                 (elf64-write-uleb128 fde-body 7)
+                 (elf64-write-uleb128 fde-body 8)
+                 (elf64-pad-to-align fde-body 8))))
+        (binary-buffer-write-u32le buf (length fde-body))
+        (binary-buffer-write-bytes buf fde-body)))))

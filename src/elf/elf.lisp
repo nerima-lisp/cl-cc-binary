@@ -8,7 +8,7 @@
 ;;;
 ;;; ELF64 reference: System V AMD64 ABI, ELF-64 Object File Format v1.5
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/elf)
 
 ;;; ------------------------------------------------------------
 ;;; ELF64 Builder
@@ -183,3 +183,10 @@ Required by Linux kernel for NX (non-executable stack) support."
 ;;; (elf64-build-symtab, elf64-build-rela, elf64-write-shdr, elf64-finalize,
 ;;;  write-elf64-file, and compile-to-elf64 are in elf-emit.lisp
 ;;;  which loads after this file.)
+
+(define-condition elf-wx-violation (cl-cc-binary-error)
+  ((segment :initarg :segment :reader elf-wx-violation-segment))
+  (:report (lambda (condition stream)
+             (format stream "ELF W^X violation: writable executable PT_LOAD segment ~S"
+                     (elf-wx-violation-segment condition))))
+  (:documentation "An ELF PT_LOAD segment requested both PF_W and PF_X."))

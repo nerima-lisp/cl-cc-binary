@@ -13,25 +13,25 @@
 ;;;; into an unbound-variable reference went undetected until this file
 ;;;; exercised it directly.
 
-(in-package :cl-cc-binary/test)
+(in-package #:cl-cc/binary/macho/test)
 
 (describe "Mach-O compression metadata"
 
   (describe "build-compression-metadata"
     (it "writes the CLCZ magic, version, algorithm, and size fields in order"
-      (let ((bytes (cl-cc/binary::build-compression-metadata 1 100 50)))
+      (let ((bytes (cl-cc/binary/macho::build-compression-metadata 1 100 50)))
         (expect (= (length bytes) 28))
         (expect (subseq bytes 0 4) :to-equalp (map 'vector #'char-code "CLCZ"))
-        (expect (= (%elf-u32le bytes 4) 1))
-        (expect (= (%elf-u32le bytes 8) 1))
-        (expect (= (%elf-u64le bytes 12) 100))
-        (expect (= (%elf-u64le bytes 20) 50)))))
+        (expect (= (%read-u32le bytes 4) 1))
+        (expect (= (%read-u32le bytes 8) 1))
+        (expect (= (%read-u64le bytes 12) 100))
+        (expect (= (%read-u64le bytes 20) 50)))))
 
   (describe "compress-code-bytes-cps"
     (it "calls only on-uncompressed, with the original bytes, when compress is nil"
       (let* ((code (make-array 4 :element-type '(unsigned-byte 8) :initial-contents '(1 2 3 4)))
              (compressed-branch-ran nil))
-        (let ((result (cl-cc/binary::compress-code-bytes-cps
+        (let ((result (cl-cc/binary/buffer:compress-code-bytes-cps
                        code nil
                        (lambda (&rest ignored)
                          (declare (ignore ignored))
@@ -40,11 +40,16 @@
           (expect compressed-branch-ran :to-be-falsy)
           (expect result :to-be code))))
 
-    (it-skip-if (cl-cc/binary::%find-sb-ext-compress)
+    (it-skip-if
+          (let ((package (find-package "SB-EXT")))
+            (when package
+              (multiple-value-bind (symbol status)
+                  (find-symbol "COMPRESS" package)
+                (and symbol status (fboundp symbol)))))
         "calls only on-uncompressed when SB-EXT:COMPRESS is unavailable"
       (let* ((code (make-array 4 :element-type '(unsigned-byte 8) :initial-contents '(9 8 7 6)))
              (compressed-branch-ran nil))
-        (let ((result (cl-cc/binary::compress-code-bytes-cps
+        (let ((result (cl-cc/binary/buffer:compress-code-bytes-cps
                        code t
                        (lambda (&rest ignored)
                          (declare (ignore ignored))

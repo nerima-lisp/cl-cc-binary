@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/elf)
 
 ;;; ------------------------------------------------------------
 ;;; ELF64 Constants
@@ -95,8 +95,6 @@
 (defconstant +r-x86-64-copy+      5)
 
 (defconstant +r-x86-64-glob-dat+  6)
-
-(defconstant +r-x86-64-jump-slot+ 7)
 
 (defconstant +r-x86-64-relative+  8)
 

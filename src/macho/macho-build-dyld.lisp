@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 (defun %macho-build-bind-opcodes (symbol-names)
   "Build a minimal dyld bind opcode stream for external SYMBOL-NAMES."

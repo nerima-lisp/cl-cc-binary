@@ -2,7 +2,7 @@
 ;;;; Reserve NOP bytes before function entries for runtime patching.
 ;;;; GCC/Clang -fpatchable-function-entry equivalent.
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/linking)
 
 ;;; ──── Configuration ────
 (defvar *patchable-entry-before* 0
@@ -12,16 +12,6 @@
   "Number of NOP bytes to insert after the function entry (before body).")
 
 ;;; ──── Vector output stream helper ────
-(defmacro with-output-to-vector ((stream-var) &body body)
-  "Execute BODY with STREAM-VAR bound to a byte-accumulator closure.
-Returns the collected bytes as a (simple-array (unsigned-byte 8) (*)).
-STREAM-VAR is a function accepting a single (unsigned-byte 8) argument."
-  (let ((bytes-sym (gensym "BYTES")))
-    `(let* ((,bytes-sym '())
-            (,stream-var (lambda (byte) (push byte ,bytes-sym))))
-       ,@body
-       (coerce (nreverse ,bytes-sym) '(simple-array (unsigned-byte 8) (*))))))
-
 ;;; ──── NOP byte sequences (Intel x86-64 multi-byte NOPs, SDM Vol. 2B table 4-12) ────
 ;;; Keys are byte counts 1-9; values are the canonical NOP encodings.
 (defparameter *nop-sequences*
@@ -83,3 +73,13 @@ Uses sb-sys:sap-ref-8 for direct memory write."
   `(let ((*patchable-entry-before* ,before)
          (*patchable-entry-after* ,after))
      ,@body))
+
+(define-condition patchable-entry-overflow (cl-cc-binary-error)
+  ((size :initarg :size :reader patchable-entry-overflow-size)
+   (reserved :initarg :reserved :reader patchable-entry-overflow-reserved))
+  (:report (lambda (condition stream)
+             (format stream "Patch size ~D exceeds reserved ~D bytes"
+                     (patchable-entry-overflow-size condition)
+                     (patchable-entry-overflow-reserved condition))))
+  (:documentation "A patch payload did not fit the bytes reserved for it at a
+patchable function entry."))

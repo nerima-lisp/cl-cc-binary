@@ -1,6 +1,6 @@
 ;;;; packages/binary/src/dwarf.lisp — FR-550/552 DWARF v5 debug info
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/dwarf)
 
 ;;; DWARF tags, attributes, forms, opcodes, and constants used by the compact
 ;;; producer below.  The emitter intentionally stays leaf-local to cl-cc/binary:
@@ -273,3 +273,22 @@ kind to the compact producer is a new row here, not new emission code.")
          (strings (strtab-bytes strtab)))
     (make-dwarf-debug-sections :info info :abbrev abbrev :line line :str strings :loc loc)))
 
+(in-package :cl-cc/binary/dwarf)
+
+(defun %emit-dwarf-line-info (text-size &key (source "<unknown>"))
+  "Emit a minimal DWARF3 .debug_line mapping line 1 to address 0."
+  (declare (ignore source))
+  (with-byte-buffer (buf)
+    (binary-buffer-write-u32le buf 29) ; unit_length
+    (binary-buffer-write-u16le buf 3)  ; version
+    (binary-buffer-write-u32le buf 16) ; header_length
+    (binary-buffer-write-bytes buf '(1 1 1 #xfb 14 13))
+    (dotimes (_ 12) (declare (ignore _)) (elf-buf-u8 buf 0))
+    (elf-buf-u8 buf 0) ; include dirs
+    (elf-buf-u8 buf 0) ; file names
+    (elf-buf-u8 buf +dwarf-dw-lns-copy+)
+    (elf-buf-u8 buf +dwarf-dw-lns-advance-pc+)
+    (elf64-write-uleb128 buf text-size)
+    (elf-buf-u8 buf 0)
+    (elf64-write-uleb128 buf 1)
+    (elf-buf-u8 buf +dwarf-dw-lne-end-sequence+)))

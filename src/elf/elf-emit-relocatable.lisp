@@ -1,4 +1,4 @@
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/elf)
 
 (defun elf64-finalize-relocatable (builder)
   "Assemble the complete ELF64 object file. Returns a (simple-array (unsigned-byte 8) (*))."

@@ -10,7 +10,7 @@
 ;;; - /usr/include/mach-o/loader.h
 ;;; - /usr/include/mach-o/nlist.h
 
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/macho)
 
 ;;; Constants
 
@@ -159,3 +159,19 @@ Mach-O's log2 width encoding (2 means 4 bytes, 3 means 8 bytes)."
 
 ;;; Byte buffer, utilities, and serialization primitives are in
 ;;; macho-buffer.lisp (loaded after this file).
+
+(define-condition macho-unknown-architecture (cl-cc-binary-error)
+  ((arch :initarg :arch :reader macho-unknown-architecture-arch))
+  (:report (lambda (condition stream)
+             (format stream "Unknown Mach-O arch: ~S" (macho-unknown-architecture-arch condition))))
+  (:documentation "MAKE-MACH-O-BUILDER received an :ARCH keyword this backend
+does not implement."))
+
+(define-condition macho-codesign-error (cl-cc-binary-error)
+  ((filename :initarg :filename :reader macho-codesign-error-filename)
+   (reason :initarg :reason :reader macho-codesign-error-reason))
+  (:report (lambda (condition stream)
+             (format stream "Mach-O code signing failed for ~A: ~A"
+                     (namestring (macho-codesign-error-filename condition))
+                     (macho-codesign-error-reason condition))))
+  (:documentation "Mach-O code signing could not complete; the target was not replaced."))

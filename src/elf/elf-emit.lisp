@@ -13,98 +13,11 @@
 ;;; are in elf.lisp (loads before).
 ;;;
 ;;; Load order: after emit/binary/elf.lisp.
-(in-package :cl-cc/binary)
+(in-package :cl-cc/binary/elf)
 
 ;;; ------------------------------------------------------------
 ;;; ELF64 Serialization
 ;;; ------------------------------------------------------------
-
-(defun elf64-write-uleb128 (buf value)
-  "Write VALUE as unsigned LEB128 to BUF."
-  (loop for v = value then (ash v -7)
-        for byte = (logand v #x7f)
-        do (elf-buf-u8 buf (if (zerop (ash v -7)) byte (logior byte #x80)))
-        until (zerop (ash v -7))))
-
-(defun elf64-write-sleb128 (buf value)
-  "Write VALUE as signed LEB128 to BUF."
-  (loop with more = t
-        with v = value
-        while more do
-          (let* ((byte (logand v #x7f))
-                 (sign-set (not (zerop (logand byte #x40)))))
-            (setf v (ash v -7))
-            (setf more (not (or (and (zerop v) (not sign-set))
-                                (and (= v -1) sign-set))))
-            (elf-buf-u8 buf (if more (logior byte #x80) byte)))))
-
-(defun elf64-pad-to-align (buf alignment)
-  "Pad BUF with DW_CFA_nop bytes to ALIGNMENT."
-  (loop while (not (zerop (mod (length buf) alignment)))
-        do (elf-buf-u8 buf 0)))
-
-(defun elf64-build-eh-frame (text-size)
-  "Build a minimal x86-64 .eh_frame with one CIE and one FDE for .text.
-
-The CIE uses augmentation \"zR\", code alignment 1, data alignment -8,
-return-address register RIP (DWARF register 16), and initial CFA rules for a
-normal call frame: CFA = RSP+8, RIP saved at CFA-8.  The FDE covers the current
-.text range and is intentionally conservative for frameless/RBP-less code."
-  (with-byte-buffer (buf)
-    ;; CIE
-    (let* ((cie-start (length buf))
-           (cie-body
-             (with-byte-buffer (cie-body)
-               (binary-buffer-write-u32le cie-body 0) ; CIE_id
-               (elf-buf-u8 cie-body 1)                ; version
-               (binary-buffer-write-bytes cie-body (map 'vector #'char-code "zR"))
-               (elf-buf-u8 cie-body 0)                ; NUL terminator
-               (elf64-write-uleb128 cie-body 1)       ; code alignment factor
-               (elf64-write-sleb128 cie-body -8)      ; data alignment factor
-               (elf64-write-uleb128 cie-body 16)      ; return address register: RIP
-               (elf64-write-uleb128 cie-body 1)       ; augmentation data length
-               (elf-buf-u8 cie-body #x1b)             ; DW_EH_PE_pcrel | sdata4
-               ;; Initial instructions: DW_CFA_def_cfa rsp,8; DW_CFA_offset rip,1
-               (elf-buf-u8 cie-body #x0c)
-               (elf64-write-uleb128 cie-body 7)
-               (elf64-write-uleb128 cie-body 8)
-               (elf-buf-u8 cie-body #x90)
-               (elf64-write-uleb128 cie-body 1)
-               (elf64-pad-to-align cie-body 8))))
-      (binary-buffer-write-u32le buf (length cie-body))
-      (binary-buffer-write-bytes buf cie-body)
-      ;; FDE. CIE_pointer is the distance from this field back to CIE start.
-      (let* ((fde-start (length buf))
-             (cie-pointer (- (+ fde-start 4) cie-start))
-             (fde-body
-               (with-byte-buffer (fde-body)
-                 (binary-buffer-write-u32le fde-body cie-pointer)
-                 ;; DW_EH_PE_pcrel|sdata4 payload. Relocatable objects leave the encoded
-                 ;; location at zero; the linker can resolve final addresses.
-                 (binary-buffer-write-u32le fde-body 0)
-                 (binary-buffer-write-u32le fde-body text-size)
-                 (elf64-write-uleb128 fde-body 0) ; augmentation data length
-                 ;; Conservative frameless prologue state: CFA remains RSP+8.
-                 (elf-buf-u8 fde-body #x0c)
-                 (elf64-write-uleb128 fde-body 7)
-                 (elf64-write-uleb128 fde-body 8)
-                 (elf64-pad-to-align fde-body 8))))
-        (binary-buffer-write-u32le buf (length fde-body))
-        (binary-buffer-write-bytes buf fde-body)))))
-
-(defun elf64-build-eh-frame-hdr (eh-frame-offset text-size)
-  "Build a compact .eh_frame_hdr with a single binary-search-table FDE row."
-  (declare (ignore text-size))
-  (with-byte-buffer (buf)
-    (elf-buf-u8 buf 1)     ; version
-    (elf-buf-u8 buf #x1b)  ; eh_frame_ptr_enc: DW_EH_PE_pcrel | sdata4
-    (elf-buf-u8 buf #x03)  ; fde_count_enc: DW_EH_PE_udata4
-    (elf-buf-u8 buf #x3b)  ; table_enc: DW_EH_PE_datarel | sdata4
-    (binary-buffer-write-u32le buf eh-frame-offset)
-    (binary-buffer-write-u32le buf 1)
-    ;; initial_location (relative to .eh_frame_hdr base) and FDE pointer.
-    (binary-buffer-write-u32le buf 0)
-    (binary-buffer-write-u32le buf 0)))
 
 (defun elf64-build-symtab (builder strtab)
   "Build symbol table bytes. Returns (values symtab-bytes local-count).
@@ -197,20 +110,54 @@ The returned bytes start with Elf64_Chdr:
     (binary-buffer-write-u64le buf addralign)
     (binary-buffer-write-bytes buf compressed-bytes)))
 
-(defun %emit-dwarf-line-info (text-size &key (source "<unknown>"))
-  "Emit a minimal DWARF3 .debug_line mapping line 1 to address 0."
-  (declare (ignore source))
-  (with-byte-buffer (buf)
-    (binary-buffer-write-u32le buf 29) ; unit_length
-    (binary-buffer-write-u16le buf 3)  ; version
-    (binary-buffer-write-u32le buf 16) ; header_length
-    (binary-buffer-write-bytes buf '(1 1 1 #xfb 14 13))
-    (dotimes (_ 12) (declare (ignore _)) (elf-buf-u8 buf 0))
-    (elf-buf-u8 buf 0) ; include dirs
-    (elf-buf-u8 buf 0) ; file names
-    (elf-buf-u8 buf +dwarf-dw-lns-copy+)
-    (elf-buf-u8 buf +dwarf-dw-lns-advance-pc+)
-    (elf64-write-uleb128 buf text-size)
-    (elf-buf-u8 buf 0)
-    (elf64-write-uleb128 buf 1)
-    (elf-buf-u8 buf +dwarf-dw-lne-end-sequence+)))
+(defun build-dwo-file (source-name &key dwo-id (producer "cl-cc") (comp-dir "."))
+  "Return a little-endian x86-64 ELF64 ET_REL metadata-only DWO file.
+DWO-ID must match the skeleton's ID. The split CU has no child DIEs or code
+mapping; its v5 line section contains a file table, not line instructions."
+  (let ((info (%dwo-unit 5 dwo-id
+                         (with-byte-buffer (die)
+                           (binary-buffer-write-u8 die 1)
+                           (%dwo-write-string die source-name)
+                           (%dwo-write-string die producer))))
+        (abbrev (make-array 12 :element-type '(unsigned-byte 8)
+                            :initial-contents '(1 #x11 0 3 8 #x25 8 #x53 #x19 0 0 0))))
+    (%dwo-elf64 (list (cons ".debug_info.dwo" info)
+                      (cons ".debug_abbrev.dwo" abbrev)
+                      (cons ".debug_line.dwo" (%dwo-line-table source-name comp-dir))))))
+
+(defun %dwo-elf64 (sections)
+  ;; The ordinary ELF builder owns code/symbol sections. This container only
+  ;; lays out the named, non-allocated metadata sections supplied here.
+  (let* ((strings (make-strtab))
+         (name-offsets (mapcar (lambda (section) (strtab-add strings (car section))) sections))
+         (strings-name (strtab-add strings ".shstrtab"))
+         (payloads (append (mapcar #'cdr sections) (list (strtab-bytes strings))))
+         (offset 64)
+         (offsets (mapcar (lambda (bytes) (prog1 offset (incf offset (length bytes)))) payloads))
+         (shoff (align-up offset 8))
+         (count (+ 2 (length sections))))
+    (with-byte-buffer (buffer)
+      (binary-buffer-write-bytes buffer '(#x7f #x45 #x4c #x46 2 1 1 0 0))
+      (binary-buffer-write-pad buffer 7)
+      (binary-buffer-write-u16le buffer +elf-type-rel+)
+      (binary-buffer-write-u16le buffer +elf-machine-x86-64+)
+      (binary-buffer-write-u32le buffer +elf-version-cur+)
+      (binary-buffer-write-u64le buffer 0)
+      (binary-buffer-write-u64le buffer 0)
+      (binary-buffer-write-u64le buffer shoff)
+      (binary-buffer-write-u32le buffer 0)
+      (binary-buffer-write-u16le buffer 64)
+      (binary-buffer-write-u16le buffer 0)
+      (binary-buffer-write-u16le buffer 0)
+      (binary-buffer-write-u16le buffer 64)
+      (binary-buffer-write-u16le buffer count)
+      (binary-buffer-write-u16le buffer (1- count))
+      (dolist (bytes payloads) (binary-buffer-write-bytes buffer bytes))
+      (binary-buffer-write-pad buffer (- shoff (length buffer)))
+      (binary-buffer-write-pad buffer 64)
+      (loop for bytes in payloads for position in offsets
+            for name in (append name-offsets (list strings-name))
+            for index from 1 do
+        (elf64-write-shdr buffer name
+                          (if (= index (1- count)) +sht-strtab+ +sht-progbits+)
+                          0 position (length bytes) 0 0 1 0)))))
