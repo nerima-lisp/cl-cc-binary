@@ -6,6 +6,8 @@
       #:value-out-of-range-high #:align-up #:serialize-uint32-le
       #:serialize-uint64-le #:with-output-to-vector #:with-byte-buffer
       #:binary-buffer-pad-and-write #:buffer-pad-to
+      #:make-byte-buffer #:buffer-write-byte #:buffer-write-bytes
+      #:buffer-get-bytes
   )
   (:import-from #:cl-cc/binary/macho
       #:macho-codesign-error #:macho-codesign-error-filename
@@ -60,6 +62,10 @@
       #:make-dwarf-eh-call-site #:dwarf-eh-call-site-start
       #:dwarf-eh-call-site-length #:dwarf-eh-call-site-landing-pad
       #:dwarf-eh-call-site-action #:dwarf-eh-call-site-type #:build-dwarf-eh-lsda
+      #:make-dwarf-compile-unit #:make-dwarf-subprogram
+      #:make-dwarf-variable-location #:dwarf-debug-sections-info
+      #:dwarf-debug-sections-abbrev #:dwarf-debug-sections-line
+      #:dwarf-debug-sections-str #:dwarf-debug-sections-loc
   )
   (:import-from #:cl-cc/binary/linking
       #:patchable-entry-overflow #:patchable-entry-overflow-size
@@ -270,4 +276,17 @@
     #:write-pe-file
     #:*pe-x86-64-argument-registers*
     #:+pe-x86-64-shadow-space-size+
-    #:pe-x86-64-stack-adjustment))
+    #:pe-x86-64-stack-adjustment
+    ;; Public buffer and DWARF values used by code-generation clients.
+    #:make-byte-buffer
+    #:buffer-write-byte
+    #:buffer-write-bytes
+    #:buffer-get-bytes
+    #:make-dwarf-compile-unit
+    #:make-dwarf-subprogram
+    #:make-dwarf-variable-location
+    #:dwarf-debug-sections-info
+    #:dwarf-debug-sections-abbrev
+    #:dwarf-debug-sections-line
+    #:dwarf-debug-sections-str
+    #:dwarf-debug-sections-loc))
