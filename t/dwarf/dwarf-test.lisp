@@ -34,7 +34,34 @@
                                                      :variables (list var)))
            (cu (cl-cc/binary/dwarf::make-dwarf-compile-unit :name "a.lisp" :subprograms (list sp)))
            (sections (cl-cc/binary/dwarf:build-dwarf-debug-sections cu)))
-      (expect (plusp (length (cl-cc/binary/dwarf::dwarf-debug-sections-loc sections))) :to-be-truthy))))
+      (expect (plusp (length (cl-cc/binary/dwarf::dwarf-debug-sections-loc sections))) :to-be-truthy)))
+  (it "fr-550-dwarf5-debug-sections-have-byte-level-headers"
+    (let* ((cu (cl-cc/binary/dwarf::make-dwarf-compile-unit
+                :name "fr550.lisp"
+                :producer "cl-cc-test"
+                :low-pc #x1000
+                :high-pc #x1020
+                :lines '((0 1) (4 2))
+                :subprograms
+                (list (cl-cc/binary/dwarf::make-dwarf-subprogram
+                       :name "main"
+                       :low-pc #x1000
+                       :high-pc #x1020
+                       :parameters
+                       (list (cl-cc/binary/dwarf::make-dwarf-variable-location
+                              :name "x" :kind :register :register 0))))))
+           (sections (cl-cc/binary/dwarf:build-dwarf-debug-sections cu))
+           (info (cl-cc/binary/dwarf::dwarf-debug-sections-info sections))
+           (line (cl-cc/binary/dwarf::dwarf-debug-sections-line sections))
+           (abbrev (cl-cc/binary/dwarf::dwarf-debug-sections-abbrev sections)))
+      (expect (plusp (length info)) :to-be-truthy)
+      (expect (plusp (length line)) :to-be-truthy)
+      (expect (plusp (length abbrev)) :to-be-truthy)
+      ;; .debug_info: unit_length:u32, version:u16=5, unit_type=compile, addr_size=8.
+      (expect (coerce (subseq info 4 8) 'list) :to-equal '(5 0 1 8))
+      ;; .debug_line: unit_length:u32, version:u16=5, addr_size=8, segment_selector=0.
+      (expect (coerce (subseq line 4 8) 'list) :to-equal '(5 0 8 0))
+      (expect (> (length abbrev) 8) :to-be-truthy))))
 
 (describe "dwarf-location-expression"
   (it "encodes a :register location as DW_OP_regN"

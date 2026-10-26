@@ -121,3 +121,38 @@
         (expect filesz :to-be #x100)
         (expect memsz :to-be #x100)
         (expect align :to-be 1)))))
+(describe "FR-247 binary ELF facade symbols"
+  (it "re-exports WRITE-ELF64-FILE"
+    (expect (and (fboundp 'cl-cc/binary:write-elf64-file)
+                 (eq 'cl-cc/binary:write-elf64-file
+                     'cl-cc/binary/elf:write-elf64-file))
+            :to-be-truthy))
+
+  (it "re-exports COMPILE-TO-ELF64"
+    (expect (and (fboundp 'cl-cc/binary:compile-to-elf64)
+                 (eq 'cl-cc/binary:compile-to-elf64
+                     'cl-cc/binary/elf:compile-to-elf64))
+            :to-be-truthy))
+
+  (it "re-exports MAKE-ELF64-EXECUTABLE"
+    (expect (and (fboundp 'cl-cc/binary:make-elf64-executable)
+                 (eq 'cl-cc/binary:make-elf64-executable
+                     'cl-cc/binary/elf:make-elf64-executable))
+            :to-be-truthy))
+  (it "encodes the .text section as SHT_PROGBITS through the public ELF API"
+    (let* ((bytes (cl-cc/binary:compile-to-elf64 #(195) nil))
+           (section-offset (%read-u64le bytes 40))
+           (section-entry-size (%read-u16le bytes 58))
+           (section-count (%read-u16le bytes 60))
+           (string-section-index (%read-u16le bytes 62))
+           (string-section-header (+ section-offset (* string-section-index section-entry-size)))
+           (string-table-offset (%read-u64le bytes (+ string-section-header 24)))
+           (text-section-type
+             (loop for index below section-count
+                   for header = (+ section-offset (* index section-entry-size))
+                   for name-offset = (%read-u32le bytes header)
+                   for name = (%read-c-string bytes (+ string-table-offset name-offset))
+                   when (string= name ".text")
+                     return (%read-u32le bytes (+ header 4)))))
+      ;; SHT_PROGBITS has ELF section type value 1.
+      (expect text-section-type :to-be 1))))
