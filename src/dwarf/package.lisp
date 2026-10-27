@@ -45,4 +45,12 @@
                      #:%dwo-line-table
                      #:+dwarf-dw-lns-copy+
                      #:+dwarf-dw-lns-advance-pc+
-                     #:+dwarf-dw-lne-end-sequence+))
+                     #:+dwarf-dw-lne-end-sequence+
+                     #:make-dwarf-compile-unit
+                     #:make-dwarf-subprogram
+                     #:make-dwarf-variable-location
+                     #:dwarf-debug-sections-info
+                     #:dwarf-debug-sections-abbrev
+                     #:dwarf-debug-sections-line
+                     #:dwarf-debug-sections-str
+                     #:dwarf-debug-sections-loc))

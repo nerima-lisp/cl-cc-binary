@@ -318,7 +318,7 @@
             glossary = "docs/src/reference/glossary.md";
             glossaryHeadingPrefix = "## ";
             exportSurface = "t/export-surface.txt";
-            mode = "transition";
+            mode = "strict";
             legacyInternalRefs = "nix/legacy-internal-refs.sexp";
             forbiddenNames = [
               "phases"
